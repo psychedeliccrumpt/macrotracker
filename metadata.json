@@ -1,0 +1,7 @@
+{
+  "name": "MacroMinimal",
+  "description": "A minimalist macro and calorie tracker with AI-powered label scanning, food search, and recipe building.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

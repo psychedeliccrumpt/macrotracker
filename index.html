@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+    <title>MacroMinimal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: '#8B5CF6', // Violet
+              accent: '#FB7185',  // Rose
+              highlight: '#FBBF24', // Amber
+              secondary: '#18181B', // Zinc-900 (Black-ish)
+              background: '#FFF1F2', // Light Rose
+              surface: '#ffffff',
+            },
+            fontFamily: {
+              sans: ['"Public Sans"', 'sans-serif'],
+              mono: ['"Space Mono"', 'monospace'],
+            },
+            boxShadow: {
+              'neo': '4px 4px 0px 0px #18181B',
+              'neo-sm': '2px 2px 0px 0px #18181B',
+              'neo-lg': '8px 8px 0px 0px #18181B',
+            },
+            borderWidth: {
+              '3': '3px',
+            }
+          },
+        },
+      }
+    </script>
+    <style>
+      body {
+        background-color: #FFF1F2;
+        font-family: 'Public Sans', sans-serif;
+        -webkit-tap-highlight-color: transparent;
+      }
+      /* Hide scrollbar for clean UI in lists */
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+      /* Custom selection color */
+      ::selection {
+        background: #FBBF24;
+        color: #18181B;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "uuid": "https://aistudiocdn.com/uuid@^13.0.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "recharts": "https://aistudiocdn.com/recharts@^3.5.1",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.31.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

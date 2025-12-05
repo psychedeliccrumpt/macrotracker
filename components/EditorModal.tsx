@@ -1,0 +1,228 @@
+import React, { useState, useEffect } from 'react';
+import { Check, X, Link as LinkIcon } from 'lucide-react';
+import { SearchResult, FoodItem } from '../types';
+
+interface EditorModalProps {
+  initialData: SearchResult | FoodItem;
+  onSave: (item: Omit<FoodItem, 'id' | 'timestamp'>) => void;
+  onCancel: () => void;
+}
+
+const UNITS = ['g', 'ml', 'oz', 'cup', 'serving', 'piece'];
+
+const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel }) => {
+  // Normalize initial data
+  const isExistingItem = 'id' in initialData;
+  
+  // Default values
+  const defaultQuantity = isExistingItem ? (initialData as FoodItem).quantity : 1;
+  const defaultUnit = isExistingItem ? (initialData as FoodItem).unit : 'serving';
+  
+  // Try to detect if it's per 100g from search result string if it's new
+  const servingStr = !isExistingItem ? (initialData as SearchResult).servingSize.toLowerCase() : '';
+  const isPer100g = !isExistingItem && (servingStr.includes('100g') || servingStr.includes('100ml'));
+  
+  const initialQty = isExistingItem ? defaultQuantity : (isPer100g ? 100 : 1);
+  const initialUnit = isExistingItem ? defaultUnit : (isPer100g ? 'g' : 'serving');
+
+  // We use a string state for the input to handle decimals and leading zeros gracefully
+  const [inputQty, setInputQty] = useState<string>(initialQty.toString());
+  const [quantity, setQuantity] = useState<number>(initialQty);
+  const [unit, setUnit] = useState<string>(initialUnit);
+  
+  const [baseMacros] = useState(() => {
+    if (isExistingItem) {
+      const item = initialData as FoodItem;
+      return {
+        calories: item.calories / item.quantity,
+        protein: item.protein / item.quantity,
+        carbs: item.carbs / item.quantity,
+        fat: item.fat / item.quantity,
+      };
+    } else {
+      const res = initialData as SearchResult;
+      // The SearchResult macros correspond to the 'initialQty' we derived.
+      return {
+        calories: res.macros.calories / initialQty,
+        protein: res.macros.protein / initialQty,
+        carbs: res.macros.carbs / initialQty,
+        fat: res.macros.fat / initialQty,
+      };
+    }
+  });
+
+  const [currentMacros, setCurrentMacros] = useState(isExistingItem ? initialData as FoodItem : (initialData as SearchResult).macros);
+
+  // Sync string input to numeric quantity for calculations
+  useEffect(() => {
+    const parsed = parseFloat(inputQty);
+    if (!isNaN(parsed)) {
+      setQuantity(parsed);
+    } else {
+      setQuantity(0);
+    }
+  }, [inputQty]);
+
+  // Update macros when numeric quantity changes
+  useEffect(() => {
+    setCurrentMacros({
+      calories: Math.round(baseMacros.calories * quantity),
+      protein: Math.round(baseMacros.protein * quantity * 10) / 10,
+      fat: Math.round(baseMacros.fat * quantity * 10) / 10,
+      carbs: Math.round(baseMacros.carbs * quantity * 10) / 10,
+    });
+  }, [quantity, baseMacros]);
+
+  const handleUnitChange = (newUnit: string) => {
+    let newQty = quantity;
+    if (unit === 'g' && newUnit === 'oz') {
+      newQty = parseFloat((quantity / 28.35).toFixed(2));
+    } else if (unit === 'oz' && newUnit === 'g') {
+      newQty = Math.round(quantity * 28.35);
+    } else if (unit === 'ml' && newUnit === 'oz') {
+       newQty = parseFloat((quantity / 29.57).toFixed(2));
+    } else if (unit === 'oz' && newUnit === 'ml') {
+       newQty = Math.round(quantity * 29.57);
+    }
+    setUnit(newUnit);
+    setInputQty(newQty.toString());
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value;
+    
+    // Auto-delete leading zero if the number is greater than 0 (e.g. "05" -> "5")
+    if (val.length > 1 && val.startsWith('0') && val[1] !== '.') {
+      val = val.substring(1);
+    }
+    
+    setInputQty(val);
+  };
+
+  const adjustQuantity = (delta: number) => {
+    const newQty = Math.max(0, parseFloat((quantity + delta).toFixed(1)));
+    setInputQty(newQty.toString());
+  };
+
+  const handleSave = () => {
+    onSave({
+      name: initialData.name,
+      ...currentMacros,
+      quantity: quantity,
+      unit: unit,
+      source: isExistingItem ? (initialData as FoodItem).source : 'manual' 
+    });
+  };
+
+  // Helper for dynamic font size on macro numbers
+  const getFontSizeClass = (val: number) => {
+    const len = Math.round(val).toString().length;
+    if (len >= 6) return 'text-base';
+    if (len >= 5) return 'text-lg';
+    if (len >= 4) return 'text-xl';
+    return 'text-2xl';
+  };
+
+  const displayName = initialData.name;
+  const displaySource = !isExistingItem && (initialData as SearchResult).sources ? (initialData as SearchResult).sources : [];
+
+  return (
+    <div className="fixed inset-0 bg-secondary/90 z-50 flex items-end sm:items-center justify-center p-4 backdrop-blur-sm">
+      <div className="bg-background w-full max-w-md border-3 border-secondary shadow-neo-lg animate-in slide-in-from-bottom-10 fade-in duration-300">
+        <div className="p-6">
+          <div className="flex justify-between items-start mb-6 border-b-3 border-secondary pb-4">
+            <div>
+              <h2 className="text-3xl font-black text-secondary uppercase leading-none mb-2">{displayName}</h2>
+              {!isExistingItem && (initialData as SearchResult).servingSize && (
+                <p className="text-secondary font-mono text-xs font-bold bg-highlight inline-block px-2 py-0.5 border border-secondary">
+                  BASE: {(initialData as SearchResult).servingSize}
+                </p>
+              )}
+            </div>
+            <button onClick={onCancel} className="p-2 border-3 border-secondary hover:bg-secondary hover:text-white transition-colors bg-white">
+              <X size={24} strokeWidth={3} />
+            </button>
+          </div>
+
+          {displaySource && displaySource.length > 0 && (
+            <div className="mb-6">
+               <p className="text-xs font-black text-secondary mb-2 uppercase tracking-wider">Source</p>
+               <div className="flex flex-wrap gap-2">
+                 {displaySource.map((src, i) => (
+                   <a key={i} href={src!.uri} target="_blank" rel="noreferrer" className="flex items-center text-xs font-bold text-secondary border-2 border-secondary px-2 py-1 hover:bg-highlight hover:underline bg-white">
+                     <LinkIcon size={10} className="mr-1"/> {src!.title.length > 20 ? src!.title.substring(0,20)+'...' : src!.title}
+                   </a>
+                 ))}
+               </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-4 gap-2 mb-8">
+            <div className="text-center p-2 border-3 border-secondary bg-white shadow-neo-sm flex flex-col justify-center min-h-[80px]">
+              <span className={`block font-black text-secondary font-mono leading-none ${getFontSizeClass(currentMacros.calories)}`}>{currentMacros.calories}</span>
+              <span className="text-[10px] font-bold uppercase bg-secondary text-white px-1 mt-1 self-center">kcal</span>
+            </div>
+            <div className="text-center p-2 border-3 border-secondary bg-primary flex flex-col justify-center min-h-[80px]">
+              <span className={`block font-black text-white font-mono leading-none ${getFontSizeClass(currentMacros.protein)}`}>{currentMacros.protein}g</span>
+              <span className="text-[10px] font-bold uppercase text-white/90 mt-1">Prot</span>
+            </div>
+            <div className="text-center p-2 border-3 border-secondary bg-accent flex flex-col justify-center min-h-[80px]">
+              <span className={`block font-black text-secondary font-mono leading-none ${getFontSizeClass(currentMacros.carbs)}`}>{currentMacros.carbs}g</span>
+              <span className="text-[10px] font-bold uppercase text-secondary/80 mt-1">Carb</span>
+            </div>
+            <div className="text-center p-2 border-3 border-secondary bg-highlight flex flex-col justify-center min-h-[80px]">
+              <span className={`block font-black text-secondary font-mono leading-none ${getFontSizeClass(currentMacros.fat)}`}>{currentMacros.fat}g</span>
+              <span className="text-[10px] font-bold uppercase text-secondary/80 mt-1">Fat</span>
+            </div>
+          </div>
+
+          <div className="mb-8 p-4 border-3 border-secondary bg-white shadow-neo-sm">
+            <div className="flex justify-between items-center mb-6">
+               <label className="block text-xs font-black uppercase text-secondary tracking-wider">Quantity</label>
+               <select 
+                 value={unit}
+                 onChange={(e) => handleUnitChange(e.target.value)}
+                 className="bg-highlight border-2 border-secondary px-2 py-1 text-xs font-black uppercase outline-none focus:bg-white transition-colors"
+               >
+                 {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+               </select>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => adjustQuantity(unit === 'g' || unit === 'ml' ? -10 : -0.5)}
+                className="w-10 h-16 border-3 border-secondary bg-surface flex items-center justify-center text-3xl font-black text-secondary hover:bg-secondary hover:text-white transition-colors"
+              >-</button>
+              
+              <div className="flex-1 flex flex-col items-center justify-end h-16">
+                 <input
+                  type="number"
+                  value={inputQty}
+                  onChange={handleInputChange}
+                  onFocus={(e) => e.target.select()} // Auto-select text on click to make replacing 0 easy
+                  className="w-full text-center text-5xl font-black text-secondary bg-transparent outline-none font-mono"
+                />
+                <div className="w-full h-1 bg-secondary mt-1"></div>
+              </div>
+
+              <button 
+                onClick={() => adjustQuantity(unit === 'g' || unit === 'ml' ? 10 : 0.5)}
+                className="w-10 h-16 border-3 border-secondary bg-surface flex items-center justify-center text-3xl font-black text-secondary hover:bg-secondary hover:text-white transition-colors"
+              >+</button>
+            </div>
+          </div>
+
+          <button 
+            onClick={handleSave}
+            className="w-full py-5 bg-secondary text-white font-black uppercase tracking-widest text-xl border-3 border-secondary hover:bg-primary hover:text-white transition-colors flex items-center justify-center gap-3 shadow-neo active:translate-x-[4px] active:translate-y-[4px] active:shadow-none"
+          >
+            <Check size={28} strokeWidth={4} />
+            {isExistingItem ? 'UPDATE LOG' : 'LOG FOOD'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default EditorModal;
