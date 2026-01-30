@@ -15,7 +15,7 @@ import Calendar from './components/Calendar';
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('dashboard');
-  
+
   // Load Logs from LocalStorage
   const [logs, setLogs] = useState<FoodItem[]>(() => {
     try {
@@ -27,7 +27,7 @@ const App: React.FC = () => {
     }
   });
 
-  // Load Weight Logs
+  // Load Weight Logs sfgdfgdzsdvsfvs
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>(() => {
     try {
       const saved = localStorage.getItem('macro_weight_logs');
@@ -125,22 +125,22 @@ const App: React.FC = () => {
       timestamp: Date.now()
     };
     setWeightLogs(prev => [...prev, newLog]);
-    
+
     // Also update current profile weight
     setUserProfile(prev => ({
       ...prev,
       weight: weight
     }));
-    
+
     setShowWeightLog(false);
     setView('my'); // Redirect to My page to see trend
   };
 
   const updateLog = (updatedData: Omit<FoodItem, 'id' | 'timestamp'>) => {
     if (!editingItem) return;
-    
-    setLogs(prev => prev.map(item => 
-      item.id === editingItem.id 
+
+    setLogs(prev => prev.map(item =>
+      item.id === editingItem.id
         ? { ...item, ...updatedData }
         : item
     ));
@@ -164,14 +164,14 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (view) {
       case 'dashboard':
-        return <Dashboard 
-            logs={logs} 
-            targets={userProfile.targets} 
-            onDeleteLog={deleteLog} 
-            onEditLog={(item) => setEditingItem(item)}
-          />;
+        return <Dashboard
+          logs={logs}
+          targets={userProfile.targets}
+          onDeleteLog={deleteLog}
+          onEditLog={(item) => setEditingItem(item)}
+        />;
       case 'log':
-        return <FoodLogHub 
+        return <FoodLogHub
           onQuickAdd={() => setShowQuickAdd(true)}
           onSearch={() => setView('search')}
           onRecipe={() => setView('recipe')}
@@ -179,37 +179,37 @@ const App: React.FC = () => {
           onScan={() => setView('scan')}
         />;
       case 'scan':
-         return <Scanner 
+        return <Scanner
           onScanComplete={(result) => {
             setTempScanResult(result);
-            setView('dashboard'); 
-          }} 
-          onClose={() => setView('log')} 
+            setView('dashboard');
+          }}
+          onClose={() => setView('log')}
         />;
       case 'calendar':
-        return <Calendar 
-            logs={logs} 
-            weightLogs={weightLogs}
-            onSelectDate={(date) => {}} 
-          />;
+        return <Calendar
+          logs={logs}
+          weightLogs={weightLogs}
+          onSelectDate={(date) => { }}
+        />;
       case 'my':
-        return <MyPage 
-                 weightLogs={weightLogs}
-                 userProfile={userProfile} 
-                 onUpdateProfile={setUserProfile} 
-               />;
+        return <MyPage
+          weightLogs={weightLogs}
+          userProfile={userProfile}
+          onUpdateProfile={setUserProfile}
+        />;
       case 'search':
-        return <Search 
+        return <Search
           onSelect={(result) => {
-             setTempScanResult(result);
-             setView('dashboard');
-          }} 
-          onBack={() => setView('log')} 
+            setTempScanResult(result);
+            setView('dashboard');
+          }}
+          onBack={() => setView('log')}
         />;
       case 'recipe':
-        return <RecipeBuilder 
+        return <RecipeBuilder
           savedRecipes={recipes}
-          onSaveRecipe={saveRecipe} 
+          onSaveRecipe={saveRecipe}
           onLogRecipe={(r) => {
             addLog({
               name: r.name,
@@ -221,23 +221,22 @@ const App: React.FC = () => {
           }}
         />;
       default:
-        return <Dashboard 
-            logs={logs} 
-            targets={userProfile.targets} 
-            onDeleteLog={deleteLog} 
-            onEditLog={(item) => setEditingItem(item)}
-          />;
+        return <Dashboard
+          logs={logs}
+          targets={userProfile.targets}
+          onDeleteLog={deleteLog}
+          onEditLog={(item) => setEditingItem(item)}
+        />;
     }
   };
 
   const NavButton = ({ active, onClick, icon: Icon, label }: { active: boolean, onClick: () => void, icon: any, label: string }) => (
-    <button 
-      onClick={onClick} 
-      className={`flex flex-col items-center justify-center gap-1 w-full h-full transition-all duration-200 border-l-3 border-secondary first:border-l-0 ${
-        active 
-          ? 'bg-highlight text-secondary shadow-[inset_0_0_20px_rgba(0,0,0,0.1)]' 
-          : 'bg-white text-gray-500 hover:bg-gray-50'
-      }`}
+    <button
+      onClick={onClick}
+      className={`flex flex-col items-center justify-center gap-1 w-full h-full transition-all duration-200 border-l-3 border-secondary first:border-l-0 ${active
+        ? 'bg-highlight text-secondary shadow-[inset_0_0_20px_rgba(0,0,0,0.1)]'
+        : 'bg-white text-gray-500 hover:bg-gray-50'
+        }`}
     >
       <Icon size={22} strokeWidth={active ? 3 : 2} className={active ? "scale-110 transition-transform" : ""} />
       <span className="text-[10px] font-black uppercase tracking-widest">{label}</span>
@@ -253,19 +252,19 @@ const App: React.FC = () => {
 
       {/* Global Editor Modal */}
       {(tempScanResult || editingItem) && (
-        <EditorModal 
-          initialData={editingItem || tempScanResult!} 
-          onSave={editingItem ? updateLog : addLog} 
+        <EditorModal
+          initialData={editingItem || tempScanResult!}
+          onSave={editingItem ? updateLog : addLog}
           onCancel={() => {
             setTempScanResult(null);
             setEditingItem(null);
-          }} 
+          }}
         />
       )}
 
       {/* Global Quick Add Modal */}
       {showQuickAdd && (
-        <QuickAddModal 
+        <QuickAddModal
           onSave={(item) => {
             addLog(item);
             setShowQuickAdd(false);
@@ -276,7 +275,7 @@ const App: React.FC = () => {
 
       {/* Global Weight Log Modal */}
       {showWeightLog && (
-        <WeightLogModal 
+        <WeightLogModal
           onSave={addWeightLog}
           onCancel={() => setShowWeightLog(false)}
         />
@@ -285,10 +284,10 @@ const App: React.FC = () => {
       {/* Standard Bottom Navigation Bar (4 items) */}
       {view !== 'scan' && (
         <div className="h-[80px] bg-white border-t-3 border-secondary grid grid-cols-4 relative z-30 shadow-[0px_-4px_0px_0px_rgba(0,0,0,0.05)]">
-           <NavButton active={view === 'dashboard'} onClick={() => setView('dashboard')} icon={LayoutGrid} label="Dash" />
-           <NavButton active={view === 'log' || view === 'search' || view === 'recipe'} onClick={() => setView('log')} icon={NotebookPen} label="Log" />
-           <NavButton active={view === 'calendar'} onClick={() => setView('calendar')} icon={CalendarIcon} label="Calendar" />
-           <NavButton active={view === 'my'} onClick={() => setView('my')} icon={CircleUser} label="My" />
+          <NavButton active={view === 'dashboard'} onClick={() => setView('dashboard')} icon={LayoutGrid} label="Dash" />
+          <NavButton active={view === 'log' || view === 'search' || view === 'recipe'} onClick={() => setView('log')} icon={NotebookPen} label="Log" />
+          <NavButton active={view === 'calendar'} onClick={() => setView('calendar')} icon={CalendarIcon} label="Calendar" />
+          <NavButton active={view === 'my'} onClick={() => setView('my')} icon={CircleUser} label="My" />
         </div>
       )}
     </div>
