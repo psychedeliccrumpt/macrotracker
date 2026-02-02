@@ -27,14 +27,8 @@ const AuthenticatedApp: React.FC = () => {
   const [logs, setLogs] = useState<FoodItem[]>([]);
 
   // Load Weight Logs sfgdfgdzsdvsfvs
-  const [weightLogs, setWeightLogs] = useState<WeightLog[]>(() => {
-    try {
-      const saved = localStorage.getItem('macro_weight_logs');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      return [];
-    }
-  });
+  // Load Weight Logs from Database
+  const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
 
   // Load Recipes from LocalStorage
   const [recipes, setRecipes] = useState<Recipe[]>(() => {
@@ -97,6 +91,14 @@ const AuthenticatedApp: React.FC = () => {
     try {
       const data = await logService.getAll(user.id);
       setLogs(data);
+
+      // Also load weight logs
+      const wLogs = await userService.getWeightLogs(user.id);
+      setWeightLogs(wLogs.map((item: any) => ({
+        id: item.id,
+        weight: item.weight,
+        timestamp: new Date(item.date).getTime()
+      })));
     } catch (e) {
       console.error('Failed to load logs', e);
     } finally {
@@ -104,9 +106,8 @@ const AuthenticatedApp: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    localStorage.setItem('macro_weight_logs', JSON.stringify(weightLogs));
-  }, [weightLogs]);
+  // Removed localStorage effect for weightLogs
+
 
 
 

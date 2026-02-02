@@ -55,5 +55,22 @@ export const userService = {
 
         // Also update current weight in profile
         await this.updateProfile(userId, { weight });
+    },
+
+    /**
+     * Get weight history for a user
+     */
+    async getWeightLogs(userId: string) {
+        const { data, error } = await supabase
+            .from('WeightLog')
+            .select('*')
+            .eq('userId', userId)
+            .order('date', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching weight logs:', error);
+            return [];
+        }
+        return data || [];
     }
 };
