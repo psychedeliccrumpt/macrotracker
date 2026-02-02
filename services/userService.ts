@@ -58,8 +58,14 @@ export const userService = {
             throw error;
         }
 
-        // Also update current weight in profile
-        await this.updateProfile(userId, { weight });
+        // Also update current weight in profile securely (only if profile exists)
+        await supabase
+            .from('Profile')
+            .update({
+                weight,
+                updatedAt: new Date().toISOString()
+            })
+            .eq('id', userId);
 
         return data;
     },

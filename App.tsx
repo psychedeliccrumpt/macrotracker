@@ -81,7 +81,7 @@ const AuthenticatedApp: React.FC = () => {
   // Load logs on mount or when user changes and reset view to dashboard
   useEffect(() => {
     if (user) {
-      logService.getAll(user.id).then(setLogs);
+      loadLogs();
       setView('dashboard'); // Explicitly ensure we start on dashboard
     }
   }, [user]);
