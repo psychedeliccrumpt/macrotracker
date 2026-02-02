@@ -12,6 +12,7 @@ export interface FoodItem extends Macros {
   quantity: number; // usually in grams or servings
   unit: string; // 'g', 'ml', 'serving', 'oz'
   servingSize?: string; // Original descriptive string
+  servingWeight?: number; // Weight in grams
   source?: 'scan' | 'search' | 'manual' | 'recipe';
   timestamp: number;
 }

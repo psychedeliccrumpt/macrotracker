@@ -34,7 +34,10 @@ model Food {
   protein     Float
   fat         Float
   carbs       Float
-  servingSize String?
+  servingSize   String?
+  servingWeight Float?   // Weight in grams
+  quantity      Float?   // Base count (e.g. 11)
+  unit          String?  // Base unit (e.g. "crackers")
   isPublic    Boolean  @default(false)
   createdById String   // Copied from auth.users.id
   createdAt   DateTime @default(now())

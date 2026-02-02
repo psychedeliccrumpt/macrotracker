@@ -57,6 +57,10 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
     if (!isExistingItem && (initialData as SearchResult).servingWeight) {
       return (initialData as SearchResult).servingWeight;
     }
+    // If we have it from DB
+    if (isExistingItem && (initialData as FoodItem).servingWeight) {
+      return (initialData as FoodItem).servingWeight;
+    }
     const servingSize = !isExistingItem
       ? (initialData as SearchResult).servingSize
       : (initialData as FoodItem).servingSize || '';
@@ -262,7 +266,10 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
         protein: finalMacros.protein,
         fat: finalMacros.fat,
         carbs: finalMacros.carbs,
-        servingSize: finalServingSize
+        servingSize: finalServingSize,
+        quantity: quantity,
+        unit: unit,
+        servingWeight: gramsPerServing
       };
 
       await foodService.createFood(foodToSave as any, user.id, isPublic);

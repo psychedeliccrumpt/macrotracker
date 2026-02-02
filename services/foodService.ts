@@ -41,6 +41,9 @@ export const foodService = {
                         carbs: item.carbs,
                     },
                     servingSize: item.servingSize || "1 serving",
+                    quantity: item.quantity || 1,
+                    unit: item.unit || 'serving',
+                    servingWeight: item.servingWeight,
                     source: item.createdById === userId ? 'personal' : 'community'
                 }));
             }
@@ -62,7 +65,7 @@ export const foodService = {
     /**
      * Create a new food item in the database
      */
-    async createFood(food: FoodItem, userId: string, isPublic: boolean = false) {
+    async createFood(food: any, userId: string, isPublic: boolean = false) {
         const { data, error } = await supabase
             .from('Food')
             .insert({
@@ -72,7 +75,10 @@ export const foodService = {
                 protein: food.protein,
                 fat: food.fat,
                 carbs: food.carbs,
-                servingSize: food.unit, // rough mapping
+                servingSize: food.servingSize, // Descriptive text
+                quantity: food.quantity,
+                unit: food.unit,
+                servingWeight: food.servingWeight, // Optional gram weight
                 createdById: userId,
                 isPublic: isPublic
             })
