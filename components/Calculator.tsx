@@ -108,7 +108,12 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }
                 <input
                   type="number"
                   value={formData.age}
-                  onChange={(e) => setFormData({ ...formData, age: Number(e.target.value) })}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => {
+                    let val = e.target.value;
+                    if (val.length > 1 && val.startsWith('0')) val = val.substring(1);
+                    setFormData({ ...formData, age: Number(val) });
+                  }}
                   className="w-full p-2 border-3 border-secondary font-mono font-bold text-lg outline-none focus:bg-accent focus:text-white transition-colors"
                 />
               </div>
@@ -117,7 +122,12 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }
                 <input
                   type="number"
                   value={formData.weight}
-                  onChange={(e) => setFormData({ ...formData, weight: Number(e.target.value) })}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => {
+                    let val = e.target.value;
+                    if (val.length > 1 && val.startsWith('0')) val = val.substring(1);
+                    setFormData({ ...formData, weight: Number(val) });
+                  }}
                   className="w-full p-2 border-3 border-secondary font-mono font-bold text-lg outline-none focus:bg-accent focus:text-white transition-colors"
                 />
               </div>
@@ -126,7 +136,12 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }
                 <input
                   type="number"
                   value={formData.height}
-                  onChange={(e) => setFormData({ ...formData, height: Number(e.target.value) })}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => {
+                    let val = e.target.value;
+                    if (val.length > 1 && val.startsWith('0')) val = val.substring(1);
+                    setFormData({ ...formData, height: Number(val) });
+                  }}
                   className="w-full p-2 border-3 border-secondary font-mono font-bold text-lg outline-none focus:bg-accent focus:text-white transition-colors"
                 />
               </div>
@@ -170,7 +185,12 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }
                 <input
                   type="number"
                   value={targets.calories}
-                  onChange={(e) => setTargets({ ...targets, calories: Number(e.target.value) })}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => {
+                    let val = e.target.value;
+                    if (val.length > 1 && val.startsWith('0')) val = val.substring(1);
+                    setTargets({ ...targets, calories: Number(val) });
+                  }}
                   className="w-full p-4 border-3 border-secondary text-4xl font-black font-mono text-center outline-none focus:bg-highlight transition-colors"
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold uppercase text-secondary text-xs bg-white px-1 border border-secondary">kcal</span>
@@ -185,7 +205,12 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }
                 <input
                   type="number"
                   value={targets.protein}
-                  onChange={(e) => setTargets({ ...targets, protein: Number(e.target.value) })}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => {
+                    let val = e.target.value;
+                    if (val.length > 1 && val.startsWith('0')) val = val.substring(1);
+                    setTargets({ ...targets, protein: Number(val) });
+                  }}
                   className="w-full p-2 border-3 border-secondary text-xl font-black font-mono text-center outline-none focus:bg-primary focus:text-white transition-colors"
                 />
                 <div className="text-[10px] font-mono font-bold text-center mt-1 text-gray-500">{pPct}%</div>
@@ -197,7 +222,12 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }
                 <input
                   type="number"
                   value={targets.carbs}
-                  onChange={(e) => setTargets({ ...targets, carbs: Number(e.target.value) })}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => {
+                    let val = e.target.value;
+                    if (val.length > 1 && val.startsWith('0')) val = val.substring(1);
+                    setTargets({ ...targets, carbs: Number(val) });
+                  }}
                   className="w-full p-2 border-3 border-secondary text-xl font-black font-mono text-center outline-none focus:bg-accent focus:text-secondary transition-colors"
                 />
                 <div className="text-[10px] font-mono font-bold text-center mt-1 text-gray-500">{cPct}%</div>
@@ -209,7 +239,12 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }
                 <input
                   type="number"
                   value={targets.fat}
-                  onChange={(e) => setTargets({ ...targets, fat: Number(e.target.value) })}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => {
+                    let val = e.target.value;
+                    if (val.length > 1 && val.startsWith('0')) val = val.substring(1);
+                    setTargets({ ...targets, fat: Number(val) });
+                  }}
                   className="w-full p-2 border-3 border-secondary text-xl font-black font-mono text-center outline-none focus:bg-highlight focus:text-secondary transition-colors"
                 />
                 <div className="text-[10px] font-mono font-bold text-center mt-1 text-gray-500">{fPct}%</div>
