@@ -37,8 +37,12 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
   const servingStr = !isExistingItem ? (initialData as SearchResult).servingSize.toLowerCase() : '';
   const isPer100g = !isExistingItem && (servingStr.includes('100g') || servingStr.includes('100ml'));
 
-  const initialQty = isExistingItem ? defaultQuantity : (isPer100g ? 100 : 1);
-  const initialUnit = isExistingItem ? defaultUnit : (isPer100g ? 'g' : 'serving');
+  // Prioritize explicit quantity/unit from AI analysis if available
+  const detectedQty = !isExistingItem ? (initialData as SearchResult).quantity : undefined;
+  const detectedUnit = !isExistingItem ? (initialData as SearchResult).unit : undefined;
+
+  const initialQty = isExistingItem ? defaultQuantity : (detectedQty ?? (isPer100g ? 100 : 1));
+  const initialUnit = isExistingItem ? defaultUnit : (detectedUnit ?? (isPer100g ? 'g' : 'serving'));
 
   // We use a string state for the input to handle decimals and leading zeros gracefully
   const [inputQty, setInputQty] = useState<string>(initialQty.toString());
@@ -322,7 +326,10 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
                 onChange={(e) => handleUnitChange(e.target.value)}
                 className="bg-highlight border-2 border-secondary px-2 py-1 text-xs font-black uppercase outline-none focus:bg-white transition-colors"
               >
-                {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                {/* Dynamic Unit Options */}
+                {Array.from(new Set([...UNITS, unit, 'g', 'ml', 'oz', 'cup', 'serving', 'piece'])).map(u => (
+                  <option key={u} value={u} className="uppercase">{u}</option>
+                ))}
               </select>
             </div>
 

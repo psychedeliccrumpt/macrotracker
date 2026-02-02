@@ -35,6 +35,8 @@ export interface SearchResult {
   macros: Macros;
   servingSize: string;
   sources?: { title: string; uri: string }[];
+  quantity?: number;
+  unit?: string;
 }
 
 export interface UserProfile {

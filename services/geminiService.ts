@@ -33,6 +33,12 @@ export const analyzeFoodLabel = async (base64Image: string): Promise<SearchResul
             2. Extract Protein, Fat, and Carbohydrates in grams.
             3. Identify the serving size or reference amount (e.g., "100g", "1 package").
             
+            5. CRITICAL: If the serving size is a COUNT of items (e.g., "11 crackers", "3 cookies"), YOU MUST:
+               - Set 'servingSize' to "1 unit" (e.g. "1 cracker").
+               - Calculate macros for ONE SINGLE UNIT (divide the serving totals by the count).
+               - If the label only gives per 100g, estimate the weight of a single unit.
+            6. If the serving size is NOT a count (e.g. "1 cup", "28g"), set 'servingSize' to that string (e.g. "28g").
+            
             Return the data in this exact JSON schema.`,
           },
         ],
@@ -43,11 +49,13 @@ export const analyzeFoodLabel = async (base64Image: string): Promise<SearchResul
           type: Type.OBJECT,
           properties: {
             name: { type: Type.STRING },
-            calories: { type: Type.NUMBER, description: "Energy in kcal" },
-            protein: { type: Type.NUMBER, description: "Protein in grams" },
-            fat: { type: Type.NUMBER, description: "Total Fat in grams" },
-            carbs: { type: Type.NUMBER, description: "Total Carbohydrates in grams" },
-            servingSize: { type: Type.STRING, description: "e.g. 100g, 1 bottle" },
+            calories: { type: Type.NUMBER, description: "Energy in kcal for ONE SERVING UNIT (e.g. 1 cracker)" },
+            protein: { type: Type.NUMBER, description: "Protein in grams for ONE SERVING UNIT" },
+            fat: { type: Type.NUMBER, description: "Total Fat in grams for ONE SERVING UNIT" },
+            carbs: { type: Type.NUMBER, description: "Total Carbohydrates in grams for ONE SERVING UNIT" },
+            servingSize: { type: Type.STRING, description: "The base unit, e.g. '1 cracker' or '28g'" },
+            quantity: { type: Type.NUMBER, description: "The count of items in a standard serving, e.g. 11" },
+            unit: { type: Type.STRING, description: "The unit name, e.g. 'crackers', 'cookies', 'pieces'" }
           },
           required: ["name", "calories", "protein", "fat", "carbs", "servingSize"],
         },
@@ -65,6 +73,8 @@ export const analyzeFoodLabel = async (base64Image: string): Promise<SearchResul
           carbs: data.carbs,
         },
         servingSize: data.servingSize,
+        quantity: data.quantity || 1,
+        unit: data.unit || 'serving',
       };
     }
     throw new Error("No data returned from model");
@@ -155,6 +165,11 @@ export const analyzeNaturalLanguageMeal = async (text: string): Promise<SearchRe
       2. For each item, prioritize USDA data or official brand information.
       3. For each item, provide: Name, Calories (kcal), Protein (g), Fat (g), and Carbs (g).
       4. Use a standard serving size for each item unless the user specified an amount (e.g. "2 eggs" vs "eggs").
+      5. CRITICAL: If the item is typically counted (e.g. "11 crackers", "5 shrimp"), break it down:
+         - Set 'quantity' to the count (e.g. 11).
+         - Set 'unit' to the item name (e.g. "crackers").
+         - Set macros for ONE SINGLE UNIT (divide total by quantity).
+         - Set 'servingSize' to "1 [unit]" (e.g. "1 cracker").
       
       Output a valid JSON array of objects inside a markdown code block (\`\`\`json ... \`\`\`) with this structure:
       [
