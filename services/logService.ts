@@ -52,7 +52,7 @@ export const logService = {
     /**
      * Create a new food log entry
      */
-    async create(userId: string, foodItem: Omit<FoodItem, 'id' | 'timestamp'>) {
+    async create(userId: string, foodItem: Omit<FoodItem, 'id' | 'timestamp'>, date?: Date) {
         const { data, error } = await supabase
             .from('FoodLog')
             .insert({
@@ -67,7 +67,7 @@ export const logService = {
                 unit: foodItem.unit,
                 servingSize: foodItem.servingSize,
                 source: foodItem.source || 'manual',
-                date: new Date().toISOString(),
+                date: date ? date.toISOString() : new Date().toISOString(),
                 mealType: 'snack', // Default, could be enhanced later
             })
             .select()

@@ -7,11 +7,12 @@ interface CalendarProps {
   logs: FoodItem[];
   weightLogs: WeightLog[];
   onSelectDate: (dateString: string) => void;
+  selectedDate?: Date;
 }
 
-const Calendar: React.FC<CalendarProps> = ({ logs, weightLogs, onSelectDate }) => {
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDateStr, setSelectedDateStr] = useState<string>(getLocalDateString());
+const Calendar: React.FC<CalendarProps> = ({ logs, weightLogs, onSelectDate, selectedDate }) => {
+  const [currentDate, setCurrentDate] = useState(selectedDate || new Date());
+  const [selectedDateStr, setSelectedDateStr] = useState<string>(getLocalDateString(selectedDate || new Date()));
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();

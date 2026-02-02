@@ -22,6 +22,7 @@ const AuthenticatedApp: React.FC = () => {
   const { session, loading, user } = useAuth();
   const [view, setView] = useState<AppView>('dashboard');
   const [logsLoading, setLogsLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
   // Logs from Database
   const [logs, setLogs] = useState<FoodItem[]>([]);
@@ -115,8 +116,10 @@ const AuthenticatedApp: React.FC = () => {
 
   const addLog = async (data: Omit<FoodItem, 'id' | 'timestamp'>) => {
     if (!user) return;
+
     try {
-      const newItem = await logService.create(user.id, data);
+      // Use selectedDate for the log timestamp
+      const newItem = await logService.create(user.id, data, selectedDate);
       setLogs(prev => [newItem, ...prev]); // Prepend to show most recent first
       setTempScanResult(null);
       setView('dashboard'); // Redirect to dashboard after logging
@@ -140,7 +143,7 @@ const AuthenticatedApp: React.FC = () => {
           unit: item.unit || 'serving',
           servingSize: item.servingSize,
           source: 'search'
-        })
+        }, selectedDate) // Use selectedDate
       ));
       setLogs(prev => [...newItems, ...prev]);
       setView('dashboard');
@@ -213,6 +216,8 @@ const AuthenticatedApp: React.FC = () => {
           }}
           onDeleteLog={deleteLog}
           onEditLog={(item) => setEditingItem(item)}
+          selectedDate={selectedDate || new Date()}
+          onDateClick={() => setView('calendar')}
         />;
       case 'log':
         return <FoodLogHub
@@ -240,7 +245,13 @@ const AuthenticatedApp: React.FC = () => {
         return <Calendar
           logs={logs}
           weightLogs={weightLogs}
-          onSelectDate={(date) => { }}
+          onSelectDate={(dateStr) => {
+            // Parse local date string YYYY-MM-DD back to local Date object
+            const [y, m, d] = dateStr.split('-').map(Number);
+            setSelectedDate(new Date(y, m - 1, d));
+            setView('dashboard');
+          }}
+          selectedDate={selectedDate} // Pass current selected date to highlight
         />;
       case 'my':
         return <MyPage
@@ -280,6 +291,8 @@ const AuthenticatedApp: React.FC = () => {
           }}
           onDeleteLog={deleteLog}
           onEditLog={(item) => setEditingItem(item)}
+          selectedDate={selectedDate || new Date()}
+          onDateClick={() => setView('calendar')}
         />;
     }
   };
