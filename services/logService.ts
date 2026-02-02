@@ -10,7 +10,7 @@ export const logService = {
     async getAll(userId: string, date?: Date): Promise<FoodItem[]> {
         let query = supabase
             .from('FoodLog')
-            .select('*')
+            .select('*, food:Food(brand)')
             .eq('userId', userId)
             .order('date', { ascending: false });
 
@@ -46,18 +46,20 @@ export const logService = {
             servingSize: log.servingSize,
             source: log.source || 'manual',
             timestamp: parseTimestamp(log.date),
+            brand: log.food?.brand,
         }));
     },
 
     /**
      * Create a new food log entry
      */
-    async create(userId: string, foodItem: Omit<FoodItem, 'id' | 'timestamp'>, date?: Date) {
+    async create(userId: string, foodItem: Omit<FoodItem, 'id' | 'timestamp'> & { foodId?: string }, date?: Date) {
         const { data, error } = await supabase
             .from('FoodLog')
             .insert({
                 id: uuidv4(),
                 userId: userId,
+                foodId: foodItem.foodId, // Link to Food table if provided
                 name: foodItem.name,
                 calories: foodItem.calories,
                 protein: foodItem.protein,

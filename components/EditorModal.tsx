@@ -6,7 +6,7 @@ import { foodService } from '../services/foodService';
 
 interface EditorModalProps {
   initialData: SearchResult | FoodItem;
-  onSave: (item: Omit<FoodItem, 'id' | 'timestamp'>) => void;
+  onSave: (item: Omit<FoodItem, 'timestamp'>) => void;
   onCancel: () => void;
 }
 
@@ -48,9 +48,15 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
   const [inputQty, setInputQty] = useState<string>(initialQty.toString());
   const [quantity, setQuantity] = useState<number>(initialQty);
   const [unit, setUnit] = useState<string>(initialUnit);
+
+  // Editable fields
+  const [name, setName] = useState<string>(initialData.name);
+  const [brand, setBrand] = useState<string>((initialData as any).brand || '');
+
   const [isPublic, setIsPublic] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [createdFoodId, setCreatedFoodId] = useState<string | null>(null);
 
   const [gramsPerServing] = useState(() => {
     // If we have an explicit servingWeight from AI, use it
@@ -228,8 +234,13 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
   };
 
   const handleSave = () => {
+    // Determine effective ID: Existing ID OR Created ID (if just saved) OR empty
+    const effectiveId = isExistingItem ? (initialData as FoodItem).id : (createdFoodId || '');
+
     onSave({
-      name: initialData.name,
+      id: effectiveId, // Pass ID if existing or newly created
+      name: name,
+      brand: brand,
       ...currentMacros,
       quantity: quantity,
       unit: unit,
@@ -261,7 +272,8 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
       }
 
       const foodToSave: any = {
-        name: initialData.name,
+        name: name,
+        brand: brand,
         calories: finalMacros.calories,
         protein: finalMacros.protein,
         fat: finalMacros.fat,
@@ -272,7 +284,10 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
         servingWeight: gramsPerServing
       };
 
-      await foodService.createFood(foodToSave as any, user.id, isPublic);
+      const newItem = await foodService.createFood(foodToSave as any, user.id, isPublic);
+      if (newItem && newItem.id) {
+        setCreatedFoodId(newItem.id);
+      }
       setSavedSuccess(true);
     } catch (e: any) {
       console.error(e);
@@ -300,15 +315,37 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
       <div className="bg-background w-full max-w-md border-3 border-secondary shadow-neo-lg animate-in slide-in-from-bottom-10 fade-in duration-300">
         <div className="p-6">
           <div className="flex justify-between items-start mb-6 border-b-3 border-secondary pb-4">
-            <div>
-              <h2 className="text-[clamp(1.5rem,7vw,2.25rem)] font-black text-secondary uppercase leading-tight mb-2 break-words">{displayName}</h2>
+            <div className="w-full mr-4">
+              {/* Brand Input */}
+              <input
+                type="text"
+                value={brand}
+                onChange={(e) => setBrand(e.target.value)}
+                placeholder="Brand (Optional)"
+                className="w-full text-xs font-bold uppercase tracking-widest text-secondary/60 bg-transparent outline-none mb-1 placeholder:text-secondary/30"
+              />
+
+              {/* Name Input */}
+              <textarea
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                rows={1}
+                className="w-full text-[clamp(1.5rem,7vw,2.25rem)] font-black text-secondary uppercase leading-tight bg-transparent outline-none resize-none overflow-hidden placeholder:text-secondary/30"
+                style={{ minHeight: '1.2em' }}
+                onInput={(e) => {
+                  const target = e.target as HTMLTextAreaElement;
+                  target.style.height = 'auto'; // Reset height
+                  target.style.height = target.scrollHeight + 'px'; // Adjust to content
+                }}
+              />
+
               {!isExistingItem && (initialData as SearchResult).servingSize && (
-                <p className="text-secondary font-mono text-xs font-bold bg-highlight inline-block px-2 py-0.5 border border-secondary">
+                <p className="text-secondary font-mono text-xs font-bold bg-highlight inline-block px-2 py-0.5 border border-secondary mt-2">
                   BASE: {(initialData as SearchResult).servingSize}
                 </p>
               )}
             </div>
-            <button onClick={onCancel} className="p-2 border-3 border-secondary hover:bg-secondary hover:text-white transition-colors bg-white">
+            <button onClick={onCancel} className="p-2 border-3 border-secondary hover:bg-secondary hover:text-white transition-colors bg-white shrink-0">
               <X size={24} strokeWidth={3} />
             </button>
           </div>

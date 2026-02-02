@@ -114,12 +114,12 @@ const AuthenticatedApp: React.FC = () => {
 
   const generateId = () => Math.random().toString(36).substring(2, 9);
 
-  const addLog = async (data: Omit<FoodItem, 'id' | 'timestamp'>) => {
+  const addLog = async (data: Omit<FoodItem, 'timestamp'>) => {
     if (!user) return;
-
     try {
       // Use selectedDate for the log timestamp
-      const newItem = await logService.create(user.id, data, selectedDate);
+      // Pass id as foodId if present
+      const newItem = await logService.create(user.id, { ...data, foodId: data.id }, selectedDate);
       setLogs(prev => [newItem, ...prev]); // Prepend to show most recent first
       setTempScanResult(null);
       setView('dashboard'); // Redirect to dashboard after logging
@@ -156,7 +156,8 @@ const AuthenticatedApp: React.FC = () => {
   const addWeightLog = async (weight: number) => {
     if (!user) return;
     try {
-      const dbInfo: any = await userService.logWeight(user.id, weight);
+      // Use selectedDate if available
+      const dbInfo: any = await userService.logWeight(user.id, weight, selectedDate);
       const newLog: WeightLog = {
         id: dbInfo.id,
         weight: dbInfo.weight,

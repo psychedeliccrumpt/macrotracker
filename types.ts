@@ -15,6 +15,7 @@ export interface FoodItem extends Macros {
   servingWeight?: number; // Weight in grams
   source?: 'scan' | 'search' | 'manual' | 'recipe';
   timestamp: number;
+  brand?: string;
 }
 
 export interface WeightLog {
@@ -39,6 +40,7 @@ export interface SearchResult {
   quantity?: number;
   unit?: string;
   servingWeight?: number; // in grams
+  brand?: string;
 }
 
 export interface UserProfile {

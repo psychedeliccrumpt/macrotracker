@@ -26,7 +26,7 @@ export const analyzeFoodLabel = async (base64Image: string): Promise<SearchResul
             },
           },
           {
-            text: `Analyze this food label. Extract the product name (if visible, otherwise "Unknown Food") and nutritional information per serving or per 100g/ml (whichever is standard on the label).
+            text: `Analyze this food label. Extract the product name (if visible, otherwise "Unknown Food") and BRAND NAME (if visible). Extract nutritional information per serving or per 100g/ml (whichever is standard on the label).
             
             CRITICAL INSTRUCTIONS:
             1. If energy is listed in Kilojoules (kJ) (common on Chinese labels), YOU MUST CONVERT IT TO KCAL (1 kcal = 4.184 kJ). Return only the kcal value.
@@ -56,7 +56,8 @@ export const analyzeFoodLabel = async (base64Image: string): Promise<SearchResul
             servingSize: { type: Type.STRING, description: "The base unit, e.g. '1 cracker' or '28g'" },
             quantity: { type: Type.NUMBER, description: "The count of items in a standard serving, e.g. 11" },
             unit: { type: Type.STRING, description: "The unit name, e.g. 'crackers', 'cookies', 'pieces'" },
-            servingWeight: { type: Type.NUMBER, description: "The total weight of the serving in grams, e.g. 30" }
+            servingWeight: { type: Type.NUMBER, description: "The total weight of the serving in grams, e.g. 30" },
+            brand: { type: Type.STRING, description: "The brand name if visible, e.g. 'Oreo', 'Lay's' or 'Generic'" }
           },
           required: ["name", "calories", "protein", "fat", "carbs", "servingSize"],
         },
@@ -77,6 +78,7 @@ export const analyzeFoodLabel = async (base64Image: string): Promise<SearchResul
         quantity: data.quantity || 1,
         unit: data.unit || 'serving',
         servingWeight: data.servingWeight,
+        brand: data.brand,
       };
     }
     throw new Error("No data returned from model");
@@ -140,6 +142,7 @@ export const searchFoodNutrition = async (query: string): Promise<SearchResult> 
           carbs: data.carbs,
         },
         servingSize: data.servingSize,
+        brand: data.brand,
         sources: sources,
       };
     }
@@ -219,6 +222,7 @@ export const analyzeNaturalLanguageMeal = async (text: string): Promise<SearchRe
         unit: item.unit || 'serving',
         servingWeight: item.servingWeight,
         servingSize: item.servingSize,
+        brand: item.brand,
         sources: sources,
       }));
     }

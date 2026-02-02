@@ -41,14 +41,16 @@ export const userService = {
     /**
      * Log a weight entry
      */
-    async logWeight(userId: string, weight: number) {
+    async logWeight(userId: string, weight: number, date?: Date) {
+        const logDate = date ? date.toISOString() : new Date().toISOString();
+
         const { data, error } = await supabase
             .from('WeightLog')
             .insert({
                 id: uuidv4(),
                 userId,
                 weight,
-                date: new Date().toISOString()
+                date: logDate
             })
             .select()
             .single();
@@ -58,14 +60,19 @@ export const userService = {
             throw error;
         }
 
-        // Also update current weight in profile securely (only if profile exists)
-        await supabase
-            .from('Profile')
-            .update({
-                weight,
-                updatedAt: new Date().toISOString()
-            })
-            .eq('id', userId);
+        // Only update profile current weight if the log is for today (or future)
+        const isToday = !date || new Date().toDateString() === date.toDateString();
+
+        if (isToday) {
+            // Also update current weight in profile securely (only if profile exists)
+            await supabase
+                .from('Profile')
+                .update({
+                    weight,
+                    updatedAt: new Date().toISOString()
+                })
+                .eq('id', userId);
+        }
 
         return data;
     },

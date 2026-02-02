@@ -44,6 +44,7 @@ export const foodService = {
                     quantity: item.quantity || 1,
                     unit: item.unit || 'serving',
                     servingWeight: item.servingWeight,
+                    brand: item.brand,
                     source: item.createdById === userId ? 'personal' : 'community'
                 }));
             }
@@ -79,6 +80,7 @@ export const foodService = {
                 quantity: food.quantity,
                 unit: food.unit,
                 servingWeight: food.servingWeight, // Optional gram weight
+                brand: food.brand,
                 createdById: userId,
                 isPublic: isPublic
             })
