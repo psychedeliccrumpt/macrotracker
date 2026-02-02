@@ -13,6 +13,7 @@ const Scanner: React.FC<ScannerProps> = ({ onScanComplete, onClose }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [stream, setStream] = useState<MediaStream | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,6 +22,13 @@ const Scanner: React.FC<ScannerProps> = ({ onScanComplete, onClose }) => {
     return () => stopCamera();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Connect stream to video element when both are ready
+  useEffect(() => {
+    if (stream && videoRef.current) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream, isStreaming]);
 
   const startCamera = async () => {
     setError(null);
@@ -44,10 +52,8 @@ const Scanner: React.FC<ScannerProps> = ({ onScanComplete, onClose }) => {
           height: { ideal: 720 }
         }
       });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setIsStreaming(true);
-      }
+      setStream(stream);
+      setIsStreaming(true);
     } catch (err) {
       console.error("Camera error:", err);
       // Determine user-friendly error message
@@ -62,11 +68,13 @@ const Scanner: React.FC<ScannerProps> = ({ onScanComplete, onClose }) => {
   };
 
   const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
+    if (stream) {
       stream.getTracks().forEach(track => track.stop());
-      videoRef.current.srcObject = null;
+      setStream(null);
       setIsStreaming(false);
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
   };
 
@@ -129,6 +137,7 @@ const Scanner: React.FC<ScannerProps> = ({ onScanComplete, onClose }) => {
         type="file"
         ref={fileInputRef}
         accept="image/*"
+        capture="environment"
         className="hidden"
         onChange={handleFileUpload}
       />
