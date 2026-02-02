@@ -42,19 +42,26 @@ export const userService = {
      * Log a weight entry
      */
     async logWeight(userId: string, weight: number) {
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from('WeightLog')
             .insert({
                 id: uuidv4(),
                 userId,
                 weight,
                 date: new Date().toISOString()
-            });
+            })
+            .select()
+            .single();
 
-        if (error) console.error('Error logging weight:', error);
+        if (error) {
+            console.error('Error logging weight:', error);
+            throw error;
+        }
 
         // Also update current weight in profile
         await this.updateProfile(userId, { weight });
+
+        return data;
     },
 
     /**

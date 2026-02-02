@@ -153,16 +153,23 @@ const AuthenticatedApp: React.FC = () => {
     }
   };
 
-  const addWeightLog = (weight: number) => {
-    const newLog: WeightLog = {
-      id: generateId(),
-      weight: weight,
-      timestamp: Date.now()
-    };
-    setWeightLogs(prev => [...prev, newLog]);
+  const addWeightLog = async (weight: number) => {
+    if (!user) return;
+    try {
+      const dbInfo: any = await userService.logWeight(user.id, weight);
+      const newLog: WeightLog = {
+        id: dbInfo.id,
+        weight: dbInfo.weight,
+        timestamp: new Date(dbInfo.date).getTime()
+      };
+      setWeightLogs(prev => [newLog, ...prev]);
 
-    setShowWeightLog(false);
-    setView('my'); // Redirect to My page to see trend
+      setShowWeightLog(false);
+      setView('my'); // Redirect to My page to see trend
+    } catch (e: any) {
+      console.error('Failed to log weight', e);
+      alert(`Failed to save weight log: ${e.message}`);
+    }
   };
 
   const updateLog = async (updatedData: Omit<FoodItem, 'id' | 'timestamp'>) => {
