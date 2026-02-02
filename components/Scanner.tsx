@@ -24,14 +24,25 @@ const Scanner: React.FC<ScannerProps> = ({ onScanComplete, onClose }) => {
 
   const startCamera = async () => {
     setError(null);
+
+    // Diagnostic: Check for secure context (HTTPS or localhost)
+    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      setError("Camera access requires HTTPS. Please deploy to Vercel or use a secure connection to test on mobile.");
+      return;
+    }
+
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setError("Camera API not available. Please upload a photo.");
+      setError("Camera API not available on this browser. Try using the Upload button instead.");
       return;
     }
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
+        video: {
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -65,10 +76,10 @@ const Scanner: React.FC<ScannerProps> = ({ onScanComplete, onClose }) => {
     setIsProcessing(true);
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    
+
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    
+
     const ctx = canvas.getContext('2d');
     if (ctx) {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -114,11 +125,11 @@ const Scanner: React.FC<ScannerProps> = ({ onScanComplete, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col">
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        accept="image/*" 
-        className="hidden" 
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="image/*"
+        className="hidden"
         onChange={handleFileUpload}
       />
 
@@ -133,18 +144,18 @@ const Scanner: React.FC<ScannerProps> = ({ onScanComplete, onClose }) => {
           <div className="text-white p-8 text-center border-4 border-white m-4 bg-secondary w-full max-w-sm shadow-[8px_8px_0px_#FB7185]">
             <p className="mb-2 font-black uppercase tracking-widest text-xl text-accent">Camera Error</p>
             <p className="mb-8 font-mono text-sm">{error}</p>
-            
+
             <div className="flex flex-col gap-4">
-              <button 
+              <button
                 onClick={() => { setError(null); startCamera(); }}
                 className="w-full py-4 bg-white text-black font-black uppercase border-4 border-black hover:bg-highlight transition-colors shadow-[4px_4px_0px_black] flex items-center justify-center gap-2"
               >
                 <RotateCcw size={20} strokeWidth={3} /> Retry Camera
               </button>
-              
+
               <div className="text-center font-mono text-xs opacity-50">- OR -</div>
 
-              <button 
+              <button
                 onClick={triggerFileUpload}
                 className="w-full py-4 bg-primary text-white font-black uppercase border-4 border-black hover:bg-violet-600 transition-colors shadow-[4px_4px_0px_black] flex items-center justify-center gap-2"
               >
@@ -155,19 +166,20 @@ const Scanner: React.FC<ScannerProps> = ({ onScanComplete, onClose }) => {
         ) : (
           <>
             {isStreaming ? (
-               <video 
-                ref={videoRef} 
-                autoPlay 
-                playsInline 
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
                 className="w-full h-full object-cover opacity-90"
-               />
+              />
             ) : (
-               // Placeholder when not streaming (e.g. initial load or processing file)
-               <div className="w-full h-full bg-secondary flex items-center justify-center">
-                  {isProcessing ? null : <div className="text-white font-mono">Initializing Camera...</div>}
-               </div>
+              // Placeholder when not streaming (e.g. initial load or processing file)
+              <div className="w-full h-full bg-secondary flex items-center justify-center">
+                {isProcessing ? null : <div className="text-white font-mono">Initializing Camera...</div>}
+              </div>
             )}
-            
+
             {/* Neobrutalist Guide overlay */}
             {!isProcessing && isStreaming && (
               <div className="absolute inset-0 border-[8px] border-white m-8 pointer-events-none flex items-center justify-center">
@@ -185,22 +197,22 @@ const Scanner: React.FC<ScannerProps> = ({ onScanComplete, onClose }) => {
 
       {/* Controls */}
       <div className="p-8 bg-white border-t-4 border-black flex justify-between items-center gap-4">
-        <button 
-           onClick={triggerFileUpload}
-           className="p-4 bg-white border-4 border-black shadow-[4px_4px_0px_black] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all active:bg-gray-100"
+        <button
+          onClick={triggerFileUpload}
+          className="p-4 bg-white border-4 border-black shadow-[4px_4px_0px_black] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all active:bg-gray-100"
         >
           <ImageIcon size={28} strokeWidth={2.5} />
         </button>
 
-        <button 
+        <button
           onClick={captureAndAnalyze}
           disabled={(!isStreaming && !isProcessing) || !!error}
           className={`w-24 h-24 rounded-full border-4 border-black flex items-center justify-center transition-transform ${isProcessing ? 'bg-black' : 'bg-accent active:scale-95 hover:bg-primary'}`}
         >
           {isProcessing ? (
-             <div className="w-10 h-10 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+            <div className="w-10 h-10 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
           ) : (
-             <div className="w-20 h-20 bg-white rounded-full border-4 border-black"></div>
+            <div className="w-20 h-20 bg-white rounded-full border-4 border-black"></div>
           )}
         </button>
 
