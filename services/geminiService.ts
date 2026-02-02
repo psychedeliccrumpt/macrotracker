@@ -2,8 +2,11 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SearchResult, Macros } from "../types";
 
 // Initialize Gemini Client
-// CRITICAL: process.env.API_KEY is guaranteed to be available.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+if (!apiKey) {
+  console.warn('Gemini API key not found. AI food search will not work.');
+}
+const ai = new GoogleGenAI({ apiKey: apiKey || 'dummy-key-for-dev' });
 
 /**
  * Analyzes a food label image (US or Chinese).
@@ -80,11 +83,16 @@ export const searchFoodNutrition = async (query: string): Promise<SearchResult> 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: `Search for the nutritional information for "${query}".
-      I need an estimate for Calories (kcal), Protein (g), Fat (g), and Carbs (g) for a standard serving.
+      
+      CRITICAL INSTRUCTIONS:
+      1. PRIORITIZE RESULTS FROM USDA (FoodData Central) or official brand websites.
+      2. If multiple results exist, use the one that matches the USDA data format.
+      3. I need an estimate for Calories (kcal), Protein (g), Fat (g), and Carbs (g) for a standard serving.
       
       Output a JSON object inside a markdown code block (\`\`\`json ... \`\`\`) with the following structure:
       {
-        "name": "Standardized Name of Food",
+        "name": "Standardized Name of Food (e.g. 'Sweet Potato, cooked')",
+        "brand": "Brand Name or 'Generic'",
         "calories": number,
         "protein": number,
         "fat": number,
@@ -100,7 +108,7 @@ export const searchFoodNutrition = async (query: string): Promise<SearchResult> 
     });
 
     const text = response.text || "";
-    
+
     // Extract Sources
     const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks
       ?.map((chunk: any) => chunk.web ? { title: chunk.web.title, uri: chunk.web.uri } : null)
@@ -108,7 +116,7 @@ export const searchFoodNutrition = async (query: string): Promise<SearchResult> 
 
     // Extract JSON block
     const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/);
-    
+
     if (jsonMatch && jsonMatch[1]) {
       const data = JSON.parse(jsonMatch[1]);
       return {
@@ -129,6 +137,75 @@ export const searchFoodNutrition = async (query: string): Promise<SearchResult> 
 
   } catch (error) {
     console.error("Food search failed:", error);
+    throw error;
+  }
+};
+/**
+ * Analyzes a natural language description of a meal (e.g. "2 eggs and a coffee").
+ * Returns an array of SearchResult objects.
+ */
+export const analyzeNaturalLanguageMeal = async (text: string): Promise<SearchResult[]> => {
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: `I just ate: "${text}".
+      
+      CRITICAL INSTRUCTIONS:
+      1. Break down the input into individual food items.
+      2. For each item, prioritize USDA data or official brand information.
+      3. For each item, provide: Name, Calories (kcal), Protein (g), Fat (g), and Carbs (g).
+      4. Use a standard serving size for each item unless the user specified an amount (e.g. "2 eggs" vs "eggs").
+      
+      Output a valid JSON array of objects inside a markdown code block (\`\`\`json ... \`\`\`) with this structure:
+      [
+        {
+          "name": "Standardized Name",
+          "calories": number,
+          "protein": number,
+          "fat": number,
+          "carbs": number,
+          "quantity": number (e.g. 10),
+          "unit": "string (e.g. pieces, shrimp, cups)",
+          "servingSize": "Descriptive serving of the BASE unit (e.g. 1 large shrimp)",
+          "brand": "Brand or 'Generic'"
+        }
+      ]
+      
+      After the code block, list the source URLs you used for all items.`,
+      config: {
+        tools: [{ googleSearch: {} }],
+      },
+    });
+
+    const outputText = response.text || "";
+    const jsonMatch = outputText.match(/```json\n([\s\S]*?)\n```/);
+
+    if (jsonMatch && jsonMatch[1]) {
+      const data = JSON.parse(jsonMatch[1]);
+
+      // Extract Sources for context
+      const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks
+        ?.map((chunk: any) => chunk.web ? { title: chunk.web.title, uri: chunk.web.uri } : null)
+        .filter((s: any) => s !== null) || [];
+
+      return data.map((item: any) => ({
+        name: item.name,
+        macros: {
+          calories: item.calories,
+          protein: item.protein,
+          fat: item.fat,
+          carbs: item.carbs,
+        },
+        quantity: item.quantity || 1,
+        unit: item.unit || 'serving',
+        servingSize: item.servingSize,
+        sources: sources,
+      }));
+    }
+
+    throw new Error("Could not parse meal data from AI response.");
+  } catch (error) {
+    console.error("Meal analysis failed:", error);
     throw error;
   }
 };

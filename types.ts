@@ -11,6 +11,7 @@ export interface FoodItem extends Macros {
   name: string;
   quantity: number; // usually in grams or servings
   unit: string; // 'g', 'ml', 'serving', 'oz'
+  servingSize?: string; // Original descriptive string
   source?: 'scan' | 'search' | 'manual' | 'recipe';
   timestamp: number;
 }
@@ -25,6 +26,7 @@ export interface Recipe {
   id: string;
   name: string;
   ingredients: FoodItem[];
+  servings: number;
   totalMacros: Macros;
 }
 
@@ -36,13 +38,16 @@ export interface SearchResult {
 }
 
 export interface UserProfile {
-  gender: 'male' | 'female';
-  age: number;
-  weight: number; // kg
-  height: number; // cm
-  activity: number; // multiplier
-  targets: Macros;
+  id: string;
+  email: string;
+  gender?: 'male' | 'female';
+  age?: number;
+  weight?: number; // kg
+  height?: number; // cm
+  activity?: number; // multiplier
+  targets?: Macros;
+  updatedAt?: string;
 }
 
-export type AppView = 'dashboard' | 'log' | 'calendar' | 'my' | 'scan' | 'search' | 'recipe';
+export type AppView = 'dashboard' | 'log' | 'calendar' | 'my' | 'scan' | 'search' | 'recipe' | 'ai-log';
 export type MyTab = 'trends' | 'calculator';

@@ -1,10 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { Calendar as CalendarIcon, LayoutGrid, CircleUser, NotebookPen } from 'lucide-react';
 import { AppView, FoodItem, Recipe, SearchResult, Macros, UserProfile, WeightLog } from './types';
 import Scanner from './components/Scanner';
 import Search from './components/Search';
 import RecipeBuilder from './components/RecipeBuilder';
+import AILogger from './components/AILogger';
 import EditorModal from './components/EditorModal';
 import MyPage from './components/MyPage';
 import QuickAddModal from './components/QuickAddModal';
@@ -12,20 +12,19 @@ import WeightLogModal from './components/WeightLogModal';
 import Dashboard from './components/Dashboard';
 import FoodLogHub from './components/FoodLogHub';
 import Calendar from './components/Calendar';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { Auth } from './components/Auth';
+import { userService } from './services/userService';
+import { v4 as uuidv4 } from 'uuid';
+import { logService } from './services/logService';
 
-const App: React.FC = () => {
+const AuthenticatedApp: React.FC = () => {
+  const { session, loading, user } = useAuth();
   const [view, setView] = useState<AppView>('dashboard');
+  const [logsLoading, setLogsLoading] = useState(true);
 
-  // Load Logs from LocalStorage
-  const [logs, setLogs] = useState<FoodItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('macro_logs');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      console.error("Failed to load logs", e);
-      return [];
-    }
-  });
+  // Logs from Database
+  const [logs, setLogs] = useState<FoodItem[]>([]);
 
   // Load Weight Logs sfgdfgdzsdvsfvs
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>(() => {
@@ -52,70 +51,102 @@ const App: React.FC = () => {
   const [editingItem, setEditingItem] = useState<FoodItem | null>(null);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [showWeightLog, setShowWeightLog] = useState(false);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
 
-  // Load User Profile from LocalStorage
-  const [userProfile, setUserProfile] = useState<UserProfile>(() => {
-    try {
-      const saved = localStorage.getItem('macro_profile');
-      return saved ? JSON.parse(saved) : {
-        gender: 'male',
-        age: 25,
-        height: 175,
-        weight: 70,
-        activity: 1.55,
-        targets: {
-          calories: 2200,
-          protein: 150,
-          carbs: 250,
-          fat: 70
-        }
-      };
-    } catch (e) {
-      console.error("Failed to load profile", e);
-      return {
-        gender: 'male',
-        age: 25,
-        height: 175,
-        weight: 70,
-        activity: 1.55,
-        targets: {
-          calories: 2200,
-          protein: 150,
-          carbs: 250,
-          fat: 70
-        }
-      };
-    }
-  });
 
-  // Persistence Effects
+  // Ensure user profile exists in Supabase
   useEffect(() => {
-    localStorage.setItem('macro_logs', JSON.stringify(logs));
-  }, [logs]);
+    const ensureProfile = async () => {
+      if (user) {
+        console.log('Checking profile for user:', user.id);
+        try {
+          const data = await userService.getProfile(user.id);
+          if (!data) {
+            console.log('No profile found, creating initial record for:', user.id);
+            const initialProfile: UserProfile = {
+              id: user.id,
+              email: user.email || 'no-email@example.com',
+              targets: { calories: 2000, protein: 150, carbs: 200, fat: 70 }
+            };
+            await userService.updateProfile(user.id, initialProfile);
+            setProfile(initialProfile);
+            console.log('Profile initialized successfully');
+          } else {
+            setProfile(data);
+          }
+        } catch (err: any) {
+          console.error('Error ensuring profile exists:', err);
+          alert(`Critical: Failed to initialize your user profile. This will prevent saving data. Error: ${err.message}`);
+        }
+      }
+    };
+    ensureProfile();
+  }, [user]);
+
+  // Load logs on mount or when user changes and reset view to dashboard
+  useEffect(() => {
+    if (user) {
+      logService.getAll(user.id).then(setLogs);
+      setView('dashboard'); // Explicitly ensure we start on dashboard
+    }
+  }, [user]);
+
+  const loadLogs = async () => {
+    if (!user) return;
+    setLogsLoading(true);
+    try {
+      const data = await logService.getAll(user.id);
+      setLogs(data);
+    } catch (e) {
+      console.error('Failed to load logs', e);
+    } finally {
+      setLogsLoading(false);
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem('macro_weight_logs', JSON.stringify(weightLogs));
   }, [weightLogs]);
 
-  useEffect(() => {
-    localStorage.setItem('macro_recipes', JSON.stringify(recipes));
-  }, [recipes]);
 
-  useEffect(() => {
-    localStorage.setItem('macro_profile', JSON.stringify(userProfile));
-  }, [userProfile]);
 
   const generateId = () => Math.random().toString(36).substring(2, 9);
 
-  const addLog = (data: Omit<FoodItem, 'id' | 'timestamp'>) => {
-    const newItem: FoodItem = {
-      ...data,
-      id: generateId(),
-      timestamp: Date.now(),
-    };
-    setLogs(prev => [...prev, newItem]);
-    setTempScanResult(null);
-    setView('dashboard'); // Redirect to dashboard after logging
+  const addLog = async (data: Omit<FoodItem, 'id' | 'timestamp'>) => {
+    if (!user) return;
+    try {
+      const newItem = await logService.create(user.id, data);
+      setLogs(prev => [newItem, ...prev]); // Prepend to show most recent first
+      setTempScanResult(null);
+      setView('dashboard'); // Redirect to dashboard after logging
+    } catch (e: any) {
+      console.error('Failed to add log', e);
+      alert(`Failed to save log: ${e.message || 'Unknown error'}`);
+    }
+  };
+
+  const addLogs = async (items: any[]) => {
+    if (!user) return;
+    try {
+      const newItems = await Promise.all(items.map(item =>
+        logService.create(user.id, {
+          name: item.name,
+          calories: item.macros ? item.macros.calories : item.calories,
+          protein: item.macros ? item.macros.protein : item.protein,
+          fat: item.macros ? item.macros.fat : item.fat,
+          carbs: item.macros ? item.macros.carbs : item.carbs,
+          quantity: item.quantity || 1,
+          unit: item.unit || 'serving',
+          servingSize: item.servingSize,
+          source: 'search'
+        })
+      ));
+      setLogs(prev => [...newItems, ...prev]);
+      setView('dashboard');
+    } catch (e: any) {
+      console.error('Failed to add multiple logs', e);
+      alert(`Failed to save logs: ${e.message || 'Unknown error'}`);
+    }
   };
 
   const addWeightLog = (weight: number) => {
@@ -126,47 +157,59 @@ const App: React.FC = () => {
     };
     setWeightLogs(prev => [...prev, newLog]);
 
-    // Also update current profile weight
-    setUserProfile(prev => ({
-      ...prev,
-      weight: weight
-    }));
-
     setShowWeightLog(false);
     setView('my'); // Redirect to My page to see trend
   };
 
-  const updateLog = (updatedData: Omit<FoodItem, 'id' | 'timestamp'>) => {
+  const updateLog = async (updatedData: Omit<FoodItem, 'id' | 'timestamp'>) => {
     if (!editingItem) return;
 
-    setLogs(prev => prev.map(item =>
-      item.id === editingItem.id
-        ? { ...item, ...updatedData }
-        : item
-    ));
-    setEditingItem(null);
+    try {
+      await logService.update(editingItem.id, updatedData);
+      setLogs(prev => prev.map(item =>
+        item.id === editingItem.id
+          ? { ...item, ...updatedData }
+          : item
+      ));
+      setEditingItem(null);
+    } catch (e: any) {
+      console.error('Failed to update log', e);
+      alert(`Failed to update log: ${e.message || 'Unknown error'}`);
+    }
   };
 
-  const deleteLog = (id: string) => {
-    setLogs(logs.filter(item => item.id !== id));
+  const deleteLog = async (id: string) => {
+    try {
+      // Optimistic update
+      setLogs(logs.filter(item => item.id !== id));
+      await logService.delete(id);
+    } catch (e) {
+      console.error('Failed to delete log', e);
+      loadLogs(); // Revert on error
+    }
   };
 
-  const saveRecipe = (name: string, ingredients: FoodItem[], totalMacros: Macros) => {
-    const newRecipe: Recipe = {
-      id: generateId(),
-      name,
-      ingredients,
-      totalMacros,
-    };
-    setRecipes([...recipes, newRecipe]);
-  };
+
+
+  if (loading) {
+    return <div className="flex h-screen items-center justify-center">Loading...</div>;
+  }
+
+  if (!session) {
+    return <Auth />;
+  }
 
   const renderContent = () => {
     switch (view) {
       case 'dashboard':
         return <Dashboard
           logs={logs}
-          targets={userProfile.targets}
+          targets={profile?.targets || {
+            calories: 2200,
+            protein: 150,
+            carbs: 250,
+            fat: 70
+          }}
           onDeleteLog={deleteLog}
           onEditLog={(item) => setEditingItem(item)}
         />;
@@ -177,6 +220,12 @@ const App: React.FC = () => {
           onRecipe={() => setView('recipe')}
           onLogWeight={() => setShowWeightLog(true)}
           onScan={() => setView('scan')}
+          onAI={() => setView('ai-log')}
+        />;
+      case 'ai-log':
+        return <AILogger
+          onBack={() => setView('log')}
+          onLogItems={addLogs}
         />;
       case 'scan':
         return <Scanner
@@ -195,8 +244,7 @@ const App: React.FC = () => {
       case 'my':
         return <MyPage
           weightLogs={weightLogs}
-          userProfile={userProfile}
-          onUpdateProfile={setUserProfile}
+          onUpdateProfile={setProfile}
         />;
       case 'search':
         return <Search
@@ -208,8 +256,7 @@ const App: React.FC = () => {
         />;
       case 'recipe':
         return <RecipeBuilder
-          savedRecipes={recipes}
-          onSaveRecipe={saveRecipe}
+          // savedRecipes prop is removed, component fetches its own data
           onLogRecipe={(r) => {
             addLog({
               name: r.name,
@@ -223,7 +270,12 @@ const App: React.FC = () => {
       default:
         return <Dashboard
           logs={logs}
-          targets={userProfile.targets}
+          targets={profile?.targets || {
+            calories: 2200,
+            protein: 150,
+            carbs: 250,
+            fat: 70
+          }}
           onDeleteLog={deleteLog}
           onEditLog={(item) => setEditingItem(item)}
         />;
@@ -291,6 +343,14 @@ const App: React.FC = () => {
         </div>
       )}
     </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AuthenticatedApp />
+    </AuthProvider>
   );
 };
 
