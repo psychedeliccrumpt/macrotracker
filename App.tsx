@@ -244,6 +244,7 @@ const AuthenticatedApp: React.FC = () => {
       case 'my':
         return <MyPage
           weightLogs={weightLogs}
+          logs={logs}
           onUpdateProfile={setProfile}
         />;
       case 'search':

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { UserProfile, MyTab, WeightLog } from '../types';
+import { UserProfile, MyTab, WeightLog, FoodItem } from '../types';
 import Calculator from './Calculator';
 import WeightTrend from './WeightTrend';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,10 +10,11 @@ import { supabase } from '../services/supabase';
 
 interface MyPageProps {
   weightLogs: WeightLog[];
+  logs: FoodItem[];
   onUpdateProfile?: (profile: UserProfile) => void;
 }
 
-const MyPage: React.FC<MyPageProps> = ({ weightLogs, onUpdateProfile }) => {
+const MyPage: React.FC<MyPageProps> = ({ weightLogs, logs, onUpdateProfile }) => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<MyTab>('trends');
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -122,7 +123,7 @@ const MyPage: React.FC<MyPageProps> = ({ weightLogs, onUpdateProfile }) => {
 
       <div className="flex-1 overflow-hidden relative bg-background">
         {activeTab === 'trends' && (
-          <WeightTrend logs={weightLogs} />
+          <WeightTrend weightLogs={weightLogs} foodLogs={logs} />
         )}
         {activeTab === 'calculator' && (
           <Calculator

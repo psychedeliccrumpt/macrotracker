@@ -184,10 +184,10 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, targets, onDeleteLog, onEdi
               </ResponsiveContainer>
 
               {/* Center Info */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-sm font-bold text-gray-400 font-mono mb-2">/ {targets.calories}</span>
-                <span className="text-6xl font-black text-secondary tracking-tighter leading-none">{Math.round(totals.calories)}</span>
-                <span className="text-sm font-black uppercase tracking-widest bg-secondary text-white px-3 py-1 mt-2 border-2 border-secondary transform rotate-2">KCAL</span>
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-4 text-center">
+                <span className="text-[10px] sm:text-sm font-bold text-gray-400 font-mono mb-1">/ {targets.calories}</span>
+                <span className="text-[clamp(2.5rem,12vw,3.75rem)] font-black text-secondary tracking-tighter leading-none">{Math.round(totals.calories)}</span>
+                <span className="text-[8px] sm:text-xs font-black uppercase tracking-widest bg-secondary text-white px-2 sm:px-3 py-0.5 sm:py-1 mt-1 sm:mt-2 border-2 border-secondary transform rotate-2">KCAL</span>
               </div>
             </div>
           </div>
@@ -197,14 +197,16 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, targets, onDeleteLog, onEdi
             {/* Protein */}
             <div
               onClick={() => setSelectedMacro('protein')}
-              className="bg-primary p-3 border-3 border-secondary shadow-[4px_4px_0px_#18181B] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all cursor-pointer active:scale-95"
+              className="bg-primary p-2 sm:p-3 border-3 border-secondary shadow-[4px_4px_0px_#18181B] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all cursor-pointer active:scale-95 flex flex-col justify-between"
             >
               <div className="flex justify-between items-center mb-1">
-                <div className="text-xs text-white uppercase font-black tracking-wider">Protein</div>
-                <div className="text-[10px] font-mono font-bold bg-white text-primary px-1">{pPct}%</div>
+                <div className="text-[8px] sm:text-xs text-white uppercase font-black tracking-wider truncate">Protein</div>
+                <div className="text-[8px] sm:text-[10px] font-mono font-bold bg-white text-primary px-0.5 sm:px-1">{pPct}%</div>
               </div>
-              <div className="text-3xl font-black text-white font-mono leading-none">{Math.round(totals.protein)}<span className="text-lg">g</span></div>
-              <div className="text-[10px] text-white/90 mt-1 font-mono uppercase">Goal: {targets.protein}g</div>
+              <div className="text-[clamp(1.25rem,6vw,1.875rem)] font-black text-white font-mono leading-none break-words">
+                {Math.round(totals.protein)}<span className="text-xs sm:text-lg ml-0.5">g</span>
+              </div>
+              <div className="text-[8px] sm:text-[10px] text-white/90 mt-1 font-mono uppercase truncate">Goal: {targets.protein}g</div>
               <div className="mt-2 w-full h-2 bg-black/20 border-2 border-secondary overflow-hidden">
                 <div className="h-full bg-white" style={{ width: `${Math.min((totals.protein / targets.protein) * 100, 100)}%` }}></div>
               </div>
@@ -213,14 +215,16 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, targets, onDeleteLog, onEdi
             {/* Carbs */}
             <div
               onClick={() => setSelectedMacro('carbs')}
-              className="bg-accent p-3 border-3 border-secondary shadow-[4px_4px_0px_#18181B] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all cursor-pointer active:scale-95"
+              className="bg-accent p-2 sm:p-3 border-3 border-secondary shadow-[4px_4px_0px_#18181B] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all cursor-pointer active:scale-95 flex flex-col justify-between"
             >
               <div className="flex justify-between items-center mb-1">
-                <div className="text-xs text-secondary uppercase font-black tracking-wider">Carbs</div>
-                <div className="text-[10px] font-mono font-bold bg-white text-accent px-1">{cPct}%</div>
+                <div className="text-[8px] sm:text-xs text-secondary uppercase font-black tracking-wider truncate">Carbs</div>
+                <div className="text-[8px] sm:text-[10px] font-mono font-bold bg-white text-accent px-0.5 sm:px-1">{cPct}%</div>
               </div>
-              <div className="text-3xl font-black text-secondary font-mono leading-none">{Math.round(totals.carbs)}<span className="text-lg">g</span></div>
-              <div className="text-[10px] text-secondary/80 mt-1 font-mono uppercase">Goal: {targets.carbs}g</div>
+              <div className="text-[clamp(1.25rem,6vw,1.875rem)] font-black text-secondary font-mono leading-none break-words">
+                {Math.round(totals.carbs)}<span className="text-xs sm:text-lg ml-0.5">g</span>
+              </div>
+              <div className="text-[8px] sm:text-[10px] text-secondary/80 mt-1 font-mono uppercase truncate">Goal: {targets.carbs}g</div>
               <div className="mt-2 w-full h-2 bg-black/10 border-2 border-secondary overflow-hidden">
                 <div className="h-full bg-white" style={{ width: `${Math.min((totals.carbs / targets.carbs) * 100, 100)}%` }}></div>
               </div>
@@ -229,14 +233,16 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, targets, onDeleteLog, onEdi
             {/* Fat */}
             <div
               onClick={() => setSelectedMacro('fat')}
-              className="bg-highlight p-3 border-3 border-secondary shadow-[4px_4px_0px_#18181B] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all cursor-pointer active:scale-95"
+              className="bg-highlight p-2 sm:p-3 border-3 border-secondary shadow-[4px_4px_0px_#18181B] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all cursor-pointer active:scale-95 flex flex-col justify-between"
             >
               <div className="flex justify-between items-center mb-1">
-                <div className="text-xs text-secondary uppercase font-black tracking-wider">Fat</div>
-                <div className="text-[10px] font-mono font-bold bg-white text-highlight px-1">{fPct}%</div>
+                <div className="text-[8px] sm:text-xs text-secondary uppercase font-black tracking-wider truncate">Fat</div>
+                <div className="text-[8px] sm:text-[10px] font-mono font-bold bg-white text-highlight px-0.5 sm:px-1">{fPct}%</div>
               </div>
-              <div className="text-3xl font-black text-secondary font-mono leading-none">{Math.round(totals.fat)}<span className="text-lg">g</span></div>
-              <div className="text-[10px] text-secondary/80 mt-1 font-mono uppercase">Goal: {targets.fat}g</div>
+              <div className="text-[clamp(1.25rem,6vw,1.875rem)] font-black text-secondary font-mono leading-none break-words">
+                {Math.round(totals.fat)}<span className="text-xs sm:text-lg ml-0.5">g</span>
+              </div>
+              <div className="text-[8px] sm:text-[10px] text-secondary/80 mt-1 font-mono uppercase truncate">Goal: {targets.fat}g</div>
               <div className="mt-2 w-full h-2 bg-white/40 border-2 border-secondary overflow-hidden">
                 <div className="h-full bg-secondary" style={{ width: `${Math.min((totals.fat / targets.fat) * 100, 100)}%` }}></div>
               </div>
