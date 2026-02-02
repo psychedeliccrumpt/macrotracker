@@ -27,8 +27,15 @@ const Scanner: React.FC<ScannerProps> = ({ onScanComplete, onClose }) => {
   useEffect(() => {
     if (stream && videoRef.current) {
       videoRef.current.srcObject = stream;
+      // Explicit play call for mobile browsers
+      const playPromise = videoRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.error("Auto-play was prevented:", error);
+        });
+      }
     }
-  }, [stream, isStreaming]);
+  }, [stream]);
 
   const startCamera = async () => {
     setError(null);
@@ -45,15 +52,28 @@ const Scanner: React.FC<ScannerProps> = ({ onScanComplete, onClose }) => {
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      // Try with ideal constraints first
+      let constraints: MediaStreamConstraints = {
         video: {
           facingMode: 'environment',
           width: { ideal: 1280 },
           height: { ideal: 720 }
         }
-      });
-      setStream(stream);
-      setIsStreaming(true);
+      };
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        setStream(stream);
+        setIsStreaming(true);
+      } catch (e) {
+        console.warn("Retrying with minimal constraints...");
+        // Fallback to minimal constraints
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' }
+        });
+        setStream(fallbackStream);
+        setIsStreaming(true);
+      }
     } catch (err) {
       console.error("Camera error:", err);
       // Determine user-friendly error message
@@ -174,18 +194,22 @@ const Scanner: React.FC<ScannerProps> = ({ onScanComplete, onClose }) => {
           </div>
         ) : (
           <>
-            {isStreaming ? (
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover opacity-90"
-              />
-            ) : (
-              // Placeholder when not streaming (e.g. initial load or processing file)
-              <div className="w-full h-full bg-secondary flex items-center justify-center">
-                {isProcessing ? null : <div className="text-white font-mono">Initializing Camera...</div>}
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`w-full h-full object-cover transition-opacity duration-300 ${isStreaming ? 'opacity-90' : 'opacity-0'}`}
+            />
+
+            {!isStreaming && (
+              <div className="absolute inset-0 bg-secondary flex items-center justify-center">
+                {isProcessing ? null : (
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <div className="text-white font-mono uppercase tracking-widest text-sm">Accessing Camera...</div>
+                  </div>
+                )}
               </div>
             )}
 
