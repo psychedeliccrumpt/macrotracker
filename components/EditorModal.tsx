@@ -251,13 +251,14 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
     }
   };
 
-  // Helper for dynamic font size on macro numbers
+  // Helper for dynamic font size on macro numbers - now with fluid sizing
   const getFontSizeClass = (val: number) => {
     const len = Math.round(val).toString().length;
-    if (len >= 6) return 'text-base';
-    if (len >= 5) return 'text-xl';
-    if (len >= 4) return 'text-xl';
-    return 'text-2xl';
+    // Base size on length, but use fluid clamp to prevent overflow
+    if (len >= 6) return 'text-[clamp(0.875rem,4vw,1rem)]';
+    if (len >= 5) return 'text-[clamp(1rem,5vw,1.25rem)]';
+    if (len >= 4) return 'text-[clamp(1.125rem,5.5vw,1.5rem)]';
+    return 'text-[clamp(1.25rem,6vw,1.875rem)]';
   };
 
   const displayName = initialData.name;
@@ -269,7 +270,7 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
         <div className="p-6">
           <div className="flex justify-between items-start mb-6 border-b-3 border-secondary pb-4">
             <div>
-              <h2 className="text-3xl font-black text-secondary uppercase leading-none mb-2">{displayName}</h2>
+              <h2 className="text-[clamp(1.5rem,7vw,2.25rem)] font-black text-secondary uppercase leading-tight mb-2 break-words">{displayName}</h2>
               {!isExistingItem && (initialData as SearchResult).servingSize && (
                 <p className="text-secondary font-mono text-xs font-bold bg-highlight inline-block px-2 py-0.5 border border-secondary">
                   BASE: {(initialData as SearchResult).servingSize}
@@ -295,21 +296,21 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
           )}
 
           <div className="grid grid-cols-4 gap-2 mb-8">
-            <div className="text-center p-2 border-3 border-secondary bg-white shadow-neo-sm flex flex-col justify-center min-h-[80px]">
+            <div className="text-center p-1 sm:p-2 border-3 border-secondary bg-white shadow-neo-sm flex flex-col justify-center min-h-[70px] sm:min-h-[80px]">
               <span className={`block font-black text-secondary font-mono leading-none ${getFontSizeClass(currentMacros.calories)}`}>{currentMacros.calories}</span>
-              <span className="text-[10px] font-bold uppercase bg-secondary text-white px-1 mt-1 self-center">kcal</span>
+              <span className="text-[8px] sm:text-[10px] font-bold uppercase bg-secondary text-white px-1 mt-1 self-center">kcal</span>
             </div>
-            <div className="text-center p-2 border-3 border-secondary bg-primary flex flex-col justify-center min-h-[80px]">
+            <div className="text-center p-1 sm:p-2 border-3 border-secondary bg-primary flex flex-col justify-center min-h-[70px] sm:min-h-[80px]">
               <span className={`block font-black text-white font-mono leading-none ${getFontSizeClass(currentMacros.protein)}`}>{currentMacros.protein}g</span>
-              <span className="text-[10px] font-bold uppercase text-white/90 mt-1">Prot</span>
+              <span className="text-[8px] sm:text-[10px] font-bold uppercase text-white/90 mt-1">Prot</span>
             </div>
-            <div className="text-center p-2 border-3 border-secondary bg-accent flex flex-col justify-center min-h-[80px]">
+            <div className="text-center p-1 sm:p-2 border-3 border-secondary bg-accent flex flex-col justify-center min-h-[70px] sm:min-h-[80px]">
               <span className={`block font-black text-secondary font-mono leading-none ${getFontSizeClass(currentMacros.carbs)}`}>{currentMacros.carbs}g</span>
-              <span className="text-[10px] font-bold uppercase text-secondary/80 mt-1">Carb</span>
+              <span className="text-[8px] sm:text-[10px] font-bold uppercase text-secondary/80 mt-1">Carb</span>
             </div>
-            <div className="text-center p-2 border-3 border-secondary bg-highlight flex flex-col justify-center min-h-[80px]">
+            <div className="text-center p-1 sm:p-2 border-3 border-secondary bg-highlight flex flex-col justify-center min-h-[70px] sm:min-h-[80px]">
               <span className={`block font-black text-secondary font-mono leading-none ${getFontSizeClass(currentMacros.fat)}`}>{currentMacros.fat}g</span>
-              <span className="text-[10px] font-bold uppercase text-secondary/80 mt-1">Fat</span>
+              <span className="text-[8px] sm:text-[10px] font-bold uppercase text-secondary/80 mt-1">Fat</span>
             </div>
           </div>
 

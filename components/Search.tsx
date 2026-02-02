@@ -98,22 +98,22 @@ const Search: React.FC<SearchProps> = ({ onSelect, onBack }) => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-4 gap-2 text-center">
-                  <div className="bg-red-50 p-2 border-2 border-red-100 rounded">
-                    <p className="text-xs text-red-400 font-bold">KCAL</p>
-                    <p className="font-black text-secondary">{Math.round(item.macros.calories)}</p>
+                <div className="grid grid-cols-4 gap-1 sm:gap-2 text-center">
+                  <div className="bg-red-50 p-1 sm:p-2 border-2 border-red-100 rounded">
+                    <p className="text-[8px] sm:text-xs text-red-400 font-bold uppercase">Kcal</p>
+                    <p className="font-black text-secondary text-sm sm:text-base">{Math.round(item.macros.calories)}</p>
                   </div>
-                  <div className="bg-blue-50 p-2 border-2 border-blue-100 rounded">
-                    <p className="text-xs text-blue-400 font-bold">PRO</p>
-                    <p className="font-black text-secondary">{Math.round(item.macros.protein)}g</p>
+                  <div className="bg-blue-50 p-1 sm:p-2 border-2 border-blue-100 rounded">
+                    <p className="text-[8px] sm:text-xs text-blue-400 font-bold uppercase">Pro</p>
+                    <p className="font-black text-secondary text-sm sm:text-base">{Math.round(item.macros.protein)}g</p>
                   </div>
-                  <div className="bg-yellow-50 p-2 border-2 border-yellow-100 rounded">
-                    <p className="text-xs text-yellow-600 font-bold">FAT</p>
-                    <p className="font-black text-secondary">{Math.round(item.macros.fat)}g</p>
+                  <div className="bg-yellow-50 p-1 sm:p-2 border-2 border-yellow-100 rounded">
+                    <p className="text-[8px] sm:text-xs text-yellow-600 font-bold uppercase">Fat</p>
+                    <p className="font-black text-secondary text-sm sm:text-base">{Math.round(item.macros.fat)}g</p>
                   </div>
-                  <div className="bg-green-50 p-2 border-2 border-green-100 rounded">
-                    <p className="text-xs text-green-600 font-bold">CARB</p>
-                    <p className="font-black text-secondary">{Math.round(item.macros.carbs)}g</p>
+                  <div className="bg-green-50 p-1 sm:p-2 border-2 border-green-100 rounded">
+                    <p className="text-[8px] sm:text-xs text-green-600 font-bold uppercase">Carb</p>
+                    <p className="font-black text-secondary text-sm sm:text-base">{Math.round(item.macros.carbs)}g</p>
                   </div>
                 </div>
                 <p className="text-xs text-gray-400 font-bold mt-2 text-right">
