@@ -220,7 +220,6 @@ const Scanner: React.FC<ScannerProps> = ({ onScanComplete, onClose }) => {
                 <div className="absolute top-0 right-0 w-12 h-12 bg-accent border-l-4 border-b-4 border-black"></div>
                 <div className="absolute bottom-0 left-0 w-12 h-12 bg-highlight border-r-4 border-t-4 border-black"></div>
                 <div className="absolute bottom-0 right-0 w-12 h-12 bg-white border-l-4 border-t-4 border-black"></div>
-                <span className="text-secondary font-black uppercase text-lg bg-white px-6 py-3 border-4 border-black shadow-[6px_6px_0px_#A78BFA] transform -rotate-2">Scan Label</span>
               </div>
             )}
           </>
