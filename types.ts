@@ -37,6 +37,7 @@ export interface SearchResult {
   sources?: { title: string; uri: string }[];
   quantity?: number;
   unit?: string;
+  servingWeight?: number; // in grams
 }
 
 export interface UserProfile {

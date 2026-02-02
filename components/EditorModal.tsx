@@ -53,6 +53,10 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   const [gramsPerServing] = useState(() => {
+    // If we have an explicit servingWeight from AI, use it
+    if (!isExistingItem && (initialData as SearchResult).servingWeight) {
+      return (initialData as SearchResult).servingWeight;
+    }
     const servingSize = !isExistingItem
       ? (initialData as SearchResult).servingSize
       : (initialData as FoodItem).servingSize || '';
@@ -65,8 +69,24 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
   const getGramsPerUnit = (u: string) => {
     if (u === 'g' || u === 'ml') return 1;
     if (u === 'oz') return 28.35;
-    if ((u === 'serving' || u === 'piece' || u === 'cup') && gramsPerServing) {
-      return gramsPerServing;
+
+    // If we have a weight for the serving (gramsPerServing), we can pivot off it
+    if (gramsPerServing) {
+      if (u === 'serving') return gramsPerServing;
+
+      // If the unit is the "countable" base unit (e.g. "cracker") and we know the count
+      const resultUnit = !isExistingItem ? (initialData as SearchResult).unit : (initialData as FoodItem).unit;
+      const resultQty = !isExistingItem ? (initialData as SearchResult).quantity : (initialData as FoodItem).quantity;
+
+      if (u === resultUnit && resultQty) {
+        // e.g. 30g serving / 11 crackers = 2.72g per cracker
+        return gramsPerServing / resultQty;
+      }
+
+      // Also handle "piece" as a generic fallback if unit matches
+      if (u === 'piece' && resultUnit && resultQty) {
+        return gramsPerServing / resultQty;
+      }
     }
     return null;
   };
@@ -259,10 +279,10 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
   const getFontSizeClass = (val: number) => {
     const len = Math.round(val).toString().length;
     // Base size on length, but use fluid clamp to prevent overflow
-    if (len >= 6) return 'text-[clamp(0.875rem,4vw,1rem)]';
-    if (len >= 5) return 'text-[clamp(1rem,5vw,1.25rem)]';
-    if (len >= 4) return 'text-[clamp(1.125rem,5.5vw,1.5rem)]';
-    return 'text-[clamp(1.25rem,6vw,1.875rem)]';
+    if (len >= 6) return 'text-[clamp(0.7rem,3vw,0.9rem)]';
+    if (len >= 5) return 'text-[clamp(0.8rem,4vw,1.1rem)]';
+    if (len >= 4) return 'text-[clamp(0.9rem,5vw,1.25rem)]';
+    return 'text-[clamp(1rem,6vw,1.5rem)]';
   };
 
   const displayName = initialData.name;

@@ -55,7 +55,8 @@ export const analyzeFoodLabel = async (base64Image: string): Promise<SearchResul
             carbs: { type: Type.NUMBER, description: "Total Carbohydrates in grams for ONE SERVING UNIT" },
             servingSize: { type: Type.STRING, description: "The base unit, e.g. '1 cracker' or '28g'" },
             quantity: { type: Type.NUMBER, description: "The count of items in a standard serving, e.g. 11" },
-            unit: { type: Type.STRING, description: "The unit name, e.g. 'crackers', 'cookies', 'pieces'" }
+            unit: { type: Type.STRING, description: "The unit name, e.g. 'crackers', 'cookies', 'pieces'" },
+            servingWeight: { type: Type.NUMBER, description: "The total weight of the serving in grams, e.g. 30" }
           },
           required: ["name", "calories", "protein", "fat", "carbs", "servingSize"],
         },
@@ -75,6 +76,7 @@ export const analyzeFoodLabel = async (base64Image: string): Promise<SearchResul
         servingSize: data.servingSize,
         quantity: data.quantity || 1,
         unit: data.unit || 'serving',
+        servingWeight: data.servingWeight,
       };
     }
     throw new Error("No data returned from model");
@@ -170,6 +172,7 @@ export const analyzeNaturalLanguageMeal = async (text: string): Promise<SearchRe
          - Set 'unit' to the item name (e.g. "crackers").
          - Set macros for ONE SINGLE UNIT (divide total by quantity).
          - Set 'servingSize' to "1 [unit]" (e.g. "1 cracker").
+         - Set 'servingWeight' to the total weight in grams if available (e.g. 30).
       
       Output a valid JSON array of objects inside a markdown code block (\`\`\`json ... \`\`\`) with this structure:
       [
@@ -182,6 +185,7 @@ export const analyzeNaturalLanguageMeal = async (text: string): Promise<SearchRe
           "quantity": number (e.g. 10),
           "unit": "string (e.g. pieces, shrimp, cups)",
           "servingSize": "Descriptive serving of the BASE unit (e.g. 1 large shrimp)",
+          "servingWeight": number (e.g. 30),
           "brand": "Brand or 'Generic'"
         }
       ]
@@ -213,6 +217,7 @@ export const analyzeNaturalLanguageMeal = async (text: string): Promise<SearchRe
         },
         quantity: item.quantity || 1,
         unit: item.unit || 'serving',
+        servingWeight: item.servingWeight,
         servingSize: item.servingSize,
         sources: sources,
       }));
