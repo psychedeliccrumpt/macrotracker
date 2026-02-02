@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Check, X, Link as LinkIcon, Save, Share2 } from 'lucide-react';
 import { SearchResult, FoodItem } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -49,9 +49,17 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
   const [quantity, setQuantity] = useState<number>(initialQty);
   const [unit, setUnit] = useState<string>(initialUnit);
 
-  // Editable fields
   const [name, setName] = useState<string>(initialData.name);
   const [brand, setBrand] = useState<string>((initialData as any).brand || '');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-resize textarea on mount and changes
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [name]);
 
   const [isPublic, setIsPublic] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -327,16 +335,12 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
 
               {/* Name Input */}
               <textarea
+                ref={textareaRef}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 rows={1}
                 className="w-full text-[clamp(1.5rem,7vw,2.25rem)] font-black text-secondary uppercase leading-tight bg-transparent outline-none resize-none overflow-hidden placeholder:text-secondary/30"
                 style={{ minHeight: '1.2em' }}
-                onInput={(e) => {
-                  const target = e.target as HTMLTextAreaElement;
-                  target.style.height = 'auto'; // Reset height
-                  target.style.height = target.scrollHeight + 'px'; // Adjust to content
-                }}
               />
 
               {!isExistingItem && (initialData as SearchResult).servingSize && (

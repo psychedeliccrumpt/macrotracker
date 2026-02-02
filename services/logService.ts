@@ -10,7 +10,7 @@ export const logService = {
     async getAll(userId: string, date?: Date): Promise<FoodItem[]> {
         let query = supabase
             .from('FoodLog')
-            .select('*, food:Food(brand)')
+            .select('*') // Reverted to simple select to fix fetch error
             .eq('userId', userId)
             .order('date', { ascending: false });
 
@@ -46,7 +46,7 @@ export const logService = {
             servingSize: log.servingSize,
             source: log.source || 'manual',
             timestamp: parseTimestamp(log.date),
-            brand: log.food?.brand,
+            // brand: log.food?.brand || log.brand, // Temporarily disabled brand fetch
         }));
     },
 
@@ -59,7 +59,8 @@ export const logService = {
             .insert({
                 id: uuidv4(),
                 userId: userId,
-                foodId: foodItem.foodId, // Link to Food table if provided
+                foodId: foodItem.foodId || null, // Ensure null if empty string
+                // brand: foodItem.brand, // Database migration failed, cannot save brand to Log table yet
                 name: foodItem.name,
                 calories: foodItem.calories,
                 protein: foodItem.protein,

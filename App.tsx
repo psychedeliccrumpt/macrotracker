@@ -142,6 +142,7 @@ const AuthenticatedApp: React.FC = () => {
           quantity: item.quantity || 1,
           unit: item.unit || 'serving',
           servingSize: item.servingSize,
+          brand: item.brand,
           source: 'search'
         }, selectedDate) // Use selectedDate
       ));
