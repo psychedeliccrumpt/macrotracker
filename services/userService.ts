@@ -85,7 +85,8 @@ export const userService = {
             .from('WeightLog')
             .select('*')
             .eq('userId', userId)
-            .order('date', { ascending: false });
+            .order('date', { ascending: false })
+            .order('createdAt', { ascending: false });
 
         if (error) {
             console.error('Error fetching weight logs:', error);
