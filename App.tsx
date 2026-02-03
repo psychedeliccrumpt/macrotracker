@@ -98,7 +98,8 @@ const AuthenticatedApp: React.FC = () => {
       setWeightLogs(wLogs.map((item: any) => ({
         id: item.id,
         weight: item.weight,
-        timestamp: new Date(item.date).getTime()
+        timestamp: new Date(item.date).getTime(),
+        createdAt: item.createdAt
       })));
     } catch (e) {
       console.error('Failed to load logs', e);
@@ -162,7 +163,8 @@ const AuthenticatedApp: React.FC = () => {
       const newLog: WeightLog = {
         id: dbInfo.id,
         weight: dbInfo.weight,
-        timestamp: new Date(dbInfo.date).getTime()
+        timestamp: new Date(dbInfo.date).getTime(),
+        createdAt: dbInfo.createdAt
       };
       setWeightLogs(prev => [newLog, ...prev]);
 

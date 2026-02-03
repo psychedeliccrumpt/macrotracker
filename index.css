@@ -41,6 +41,10 @@
     box-shadow: 3px 3px 0px 0px rgba(15, 23, 42, 1);
   }
 
+  .shadow-neo-mini {
+    box-shadow: 2px 2px 0px 0px rgba(15, 23, 42, 1);
+  }
+
   .shadow-neo-lg {
     box-shadow: 10px 10px 0px 0px rgba(15, 23, 42, 1);
   }

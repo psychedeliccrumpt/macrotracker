@@ -14,26 +14,43 @@ const WeightTrend: React.FC<WeightTrendProps> = ({ weightLogs, foodLogs, current
   // 1. Group all dates and aggregate calories
   const aggregatedData: { [key: string]: { date: string, weight?: number, calories: number, timestamp: number } } = {};
 
+  // Helper to get a stable local day key and label
+  const getDayInfo = (timestamp: number) => {
+    const d = new Date(timestamp);
+    const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const dateLabel = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const dayStart = new Date(timestamp).setHours(0, 0, 0, 0);
+    return { dayKey, dateLabel, dayStart };
+  };
+
   // Process food logs first
   foodLogs.forEach(log => {
-    const date = new Date(log.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    const dayStart = new Date(log.timestamp).setHours(0, 0, 0, 0);
-
-    if (!aggregatedData[date]) {
-      aggregatedData[date] = { date, calories: 0, timestamp: dayStart };
+    const { dayKey, dateLabel, dayStart } = getDayInfo(log.timestamp);
+    if (!aggregatedData[dayKey]) {
+      aggregatedData[dayKey] = { date: dateLabel, calories: 0, timestamp: dayStart };
     }
-    aggregatedData[date].calories += log.calories;
+    aggregatedData[dayKey].calories += log.calories;
   });
 
-  // Process weight logs - Sort ascending first to ensure latest per day overwrites
-  [...weightLogs].sort((a, b) => a.timestamp - b.timestamp).forEach(log => {
-    const date = new Date(log.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    const dayStart = new Date(log.timestamp).setHours(0, 0, 0, 0);
+  // Process weight logs - For each day, keep the one created LATEST
+  const weightByDay: { [key: string]: WeightLog } = {};
+  weightLogs.forEach(log => {
+    const { dayKey } = getDayInfo(log.timestamp);
+    const existing = weightByDay[dayKey];
 
-    if (!aggregatedData[date]) {
-      aggregatedData[date] = { date, calories: 0, timestamp: dayStart };
+    // If we have two logs for the same day, pick the more recently created one
+    if (!existing || (log.createdAt && (!existing.createdAt || log.createdAt > existing.createdAt))) {
+      weightByDay[dayKey] = log;
     }
-    aggregatedData[date].weight = log.weight;
+  });
+
+  // Apply winners to aggregation
+  Object.entries(weightByDay).forEach(([dayKey, log]) => {
+    const { dateLabel, dayStart } = getDayInfo(log.timestamp);
+    if (!aggregatedData[dayKey]) {
+      aggregatedData[dayKey] = { date: dateLabel, calories: 0, timestamp: dayStart };
+    }
+    aggregatedData[dayKey].weight = Number(log.weight); // Ensure it's a number for charts
   });
 
   // Convert to sorted array
@@ -44,9 +61,18 @@ const WeightTrend: React.FC<WeightTrendProps> = ({ weightLogs, foodLogs, current
   const startWeight = sortedWeightLogs.length > 0 ? sortedWeightLogs[0].weight : 0;
   const weightDiff = currentWeight - startWeight;
 
-  // 4. Dynamic TDEE Calculation
-  // Find period with both weight and food data
-  const dataWithWeight = chartData.filter(d => d.weight !== undefined);
+  // 4. Dynamic TDEE Calculation (Rolling 14-day window, excluding today)
+  const todayStart = new Date().setHours(0, 0, 0, 0);
+  const twoWeeksAgo = todayStart - (14 * 1000 * 60 * 60 * 24);
+  const oneWeekAgo = todayStart - (7 * 1000 * 60 * 60 * 24);
+
+  // Filter for completed days in the last 14 days
+  const validWindowData = chartData.filter(d =>
+    d.timestamp >= twoWeeksAgo &&
+    d.timestamp < todayStart
+  );
+
+  const dataWithWeight = validWindowData.filter(d => d.weight !== undefined);
   let dynamicTDEE = null;
   let tdeeBreakdown = null;
 
@@ -54,26 +80,32 @@ const WeightTrend: React.FC<WeightTrendProps> = ({ weightLogs, foodLogs, current
     const startEntry = dataWithWeight[0];
     const endEntry = dataWithWeight[dataWithWeight.length - 1];
 
-    // Period in days
+    // Period in days between the first and last weight log in the window
     const days = Math.max(1, (endEntry.timestamp - startEntry.timestamp) / (1000 * 60 * 60 * 24));
 
-    if (days >= 3) { // Require at least 3 days for a meaningful trend
+    if (days >= 3) {
       const totalWeightChange = endEntry.weight! - startEntry.weight!;
 
-      // Calculate average calories in THIS specific window
-      const windowData = chartData.filter(d => d.timestamp >= startEntry.timestamp && d.timestamp <= endEntry.timestamp);
-      const avgCaloriesInWindow = windowData.reduce((acc, curr) => acc + curr.calories, 0) / windowData.length;
+      // Calculate average calories based ONLY on days that actually have calorie data
+      const daysWithCalories = validWindowData.filter(d => d.calories > 0);
+      const avgCaloriesInWindow = daysWithCalories.length > 0
+        ? daysWithCalories.reduce((acc, curr) => acc + curr.calories, 0) / daysWithCalories.length
+        : 0;
 
       // 1kg of fat ~ 7700 kcal
       const calorieDeltaFromWeight = (totalWeightChange * 7700) / days;
-      dynamicTDEE = Math.round(avgCaloriesInWindow - calorieDeltaFromWeight);
 
-      tdeeBreakdown = {
-        days: Math.round(days),
-        weightChange: totalWeightChange.toFixed(1),
-        avgIntake: Math.round(avgCaloriesInWindow),
-        adjustment: Math.round(Math.abs(calorieDeltaFromWeight))
-      };
+      if (avgCaloriesInWindow > 0) {
+        dynamicTDEE = Math.round(avgCaloriesInWindow - calorieDeltaFromWeight);
+
+        tdeeBreakdown = {
+          days: Math.round(days),
+          weightChange: totalWeightChange.toFixed(1),
+          avgIntake: Math.round(avgCaloriesInWindow),
+          adjustment: Math.round(Math.abs(calorieDeltaFromWeight)),
+          samples: daysWithCalories.length
+        };
+      }
     }
   }
 
@@ -114,12 +146,15 @@ const WeightTrend: React.FC<WeightTrendProps> = ({ weightLogs, foodLogs, current
                 </div>
               </div>
               <div className="bg-white border-3 border-secondary p-4 shadow-neo flex flex-col justify-between">
-                <p className="text-[10px] font-black uppercase text-secondary tracking-widest mb-1 underline decoration-highlight">Avg Calories</p>
+                <p className="text-[10px] font-black uppercase text-secondary tracking-widest mb-1 underline decoration-highlight">Avg Calories <span className="text-[8px] opacity-40">(7D)</span></p>
                 <div className="flex items-end justify-between">
                   <p className="text-3xl font-black font-mono text-secondary">
-                    {chartData.length > 0
-                      ? Math.round(chartData.reduce((acc, curr) => acc + curr.calories, 0) / chartData.length)
-                      : 0}
+                    {(() => {
+                      const last7Days = chartData.filter(d => d.timestamp >= oneWeekAgo && d.timestamp < todayStart && d.calories > 0);
+                      return last7Days.length > 0
+                        ? Math.round(last7Days.reduce((acc, curr) => acc + curr.calories, 0) / last7Days.length)
+                        : 0;
+                    })()}
                   </p>
                   <Activity size={18} className="text-highlight mb-1" strokeWidth={3} />
                 </div>
@@ -146,10 +181,11 @@ const WeightTrend: React.FC<WeightTrendProps> = ({ weightLogs, foodLogs, current
                   <YAxis
                     yAxisId="left"
                     orientation="left"
-                    domain={['auto', 'auto']}
                     tick={{ fontSize: 9, fontFamily: 'monospace', fontWeight: 'bold', fill: '#8B5CF6' }}
                     axisLine={false}
                     tickLine={false}
+                    domain={['dataMin - 0.2', 'dataMax + 0.2']}
+                    tickFormatter={(val) => Number(val).toFixed(2).replace(/\.00$/, '')}
                   />
                   {/* Calories Axis */}
                   <YAxis
@@ -167,6 +203,11 @@ const WeightTrend: React.FC<WeightTrendProps> = ({ weightLogs, foodLogs, current
                       fontFamily: 'monospace',
                       fontSize: '12px',
                       fontWeight: 'bold'
+                    }}
+                    formatter={(value: any, name: string) => {
+                      if (name === "Weight (kg)") return [typeof value === 'number' ? value.toFixed(1) : value, name];
+                      if (name === "Calories") return [Math.round(value), name];
+                      return [value, name];
                     }}
                   />
 
@@ -269,7 +310,7 @@ const WeightTrend: React.FC<WeightTrendProps> = ({ weightLogs, foodLogs, current
                           </div>
                         </div>
                         <p className="mt-4 text-[9px] font-bold text-secondary/30 uppercase leading-tight italic">
-                          *Log regularly for better accuracy. Calculations are based on your {tdeeBreakdown?.days}-day trend.
+                          *Log regularly for better accuracy. Calculations use your most recent 14-day trend ({tdeeBreakdown?.samples} days logged).
                         </p>
                       </div>
                     </div>

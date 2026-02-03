@@ -14,14 +14,16 @@ export interface FoodItem extends Macros {
   servingSize?: string; // Original descriptive string
   servingWeight?: number; // Weight in grams
   source?: 'scan' | 'search' | 'manual' | 'recipe';
-  timestamp: number;
   brand?: string;
+  createdAt?: string;
+  timestamp: number;
 }
 
 export interface WeightLog {
   id: string;
   weight: number;
   timestamp: number;
+  createdAt?: string;
 }
 
 export interface GoalLog {

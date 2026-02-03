@@ -106,6 +106,7 @@ model FoodLog {
   
   food      Food     @relation(fields: [foodId], references: [id])
   profile   Profile  @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
 }
 
 model WeightLog {
@@ -115,4 +116,5 @@ model WeightLog {
   date      DateTime @default(now())
   
   profile   Profile  @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
 }

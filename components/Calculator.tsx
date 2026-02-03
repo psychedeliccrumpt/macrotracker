@@ -400,8 +400,8 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }
             <div className="p-4 border-3 border-secondary bg-white shadow-neo">
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="text-xs font-black uppercase text-secondary/40 tracking-widest">Active Journey</h3>
-                  <p className="text-2xl font-black text-secondary uppercase leading-none mt-1">
+                  <h3 className="text-[10px] font-black uppercase text-secondary/40 tracking-widest">Active Journey</h3>
+                  <p className="text-xl sm:text-2xl font-black text-secondary uppercase leading-none mt-1">
                     {displayGoal.type} to {displayGoal.weight}kg
                   </p>
                   {displayGoal.date && (
@@ -410,27 +410,27 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }
                     </p>
                   )}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-1.5 sm:gap-2">
                   <button
                     onClick={() => handleResetGoal('completed')}
-                    className="p-2 border-2 border-secondary bg-green-400 text-white hover:bg-green-500 transition-all shadow-neo-sm"
+                    className="p-1.5 sm:p-2 border-2 border-secondary bg-green-400 text-white hover:bg-green-500 transition-all shadow-neo-mini sm:shadow-neo-sm"
                     title="Mark as Completed"
                   >
-                    <CheckCircle2 size={18} />
+                    <CheckCircle2 size={16} className="sm:w-[18px] sm:h-[18px]" />
                   </button>
                   <button
                     onClick={() => handleResetGoal('abandoned')}
-                    className="p-2 border-2 border-secondary bg-orange-400 text-white hover:bg-orange-500 transition-all shadow-neo-sm"
+                    className="p-1.5 sm:p-2 border-2 border-secondary bg-orange-400 text-white hover:bg-orange-500 transition-all shadow-neo-mini sm:shadow-neo-sm"
                     title="Abandon Goal"
                   >
-                    <AlertTriangle size={18} />
+                    <AlertTriangle size={16} className="sm:w-[18px] sm:h-[18px]" />
                   </button>
                   <button
                     onClick={() => handleResetGoal('deleted')}
-                    className="p-2 border-2 border-secondary bg-red-400 text-white hover:bg-red-500 transition-all shadow-neo-sm"
+                    className="p-1.5 sm:p-2 border-2 border-secondary bg-red-400 text-white hover:bg-red-500 transition-all shadow-neo-mini sm:shadow-neo-sm"
                     title="Delete Goal"
                   >
-                    <CalcIcon size={18} className="rotate-45" />
+                    <CalcIcon size={16} className="rotate-45 sm:w-[18px] sm:h-[18px]" />
                   </button>
                 </div>
               </div>
@@ -446,9 +446,11 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }
               <div className="absolute -right-4 -top-4 opacity-10 rotate-12">
                 <Target size={80} className="text-secondary" />
               </div>
-              <h2 className="text-xs font-bold uppercase tracking-widest text-secondary/60 mb-2">Current Daily Budget</h2>
+              <h2 className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-secondary/60 mb-2">Current Daily Budget</h2>
               <div className="flex items-baseline justify-center gap-2">
-                <span className="text-7xl font-black text-secondary">{currentProfile.targets?.calories || targets.calories}</span>
+                <span className="text-5xl sm:text-7xl font-black text-secondary font-mono tracking-tighter">
+                  {currentProfile.targets?.calories || targets.calories}
+                </span>
                 <span className="text-xl font-black uppercase text-secondary">kcal</span>
               </div>
 
