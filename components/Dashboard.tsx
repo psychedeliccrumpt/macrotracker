@@ -144,8 +144,10 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, targets, onDeleteLog, onEdi
         <div className="p-6 bg-surface border-b-3 border-secondary shadow-neo mb-8 relative">
 
           {/* Slogan */}
-          <div className="absolute top-0 right-0 p-2 z-10 opacity-10 pointer-events-none">
-            <h1 className="text-5xl sm:text-6xl font-black uppercase text-right leading-none text-secondary">FOOD<br />IS<br />FUEL</h1>
+          <div className="absolute top-0 right-0 z-0 opacity-10 pointer-events-none flex flex-col items-end pt-6">
+            <div className="text-4xl sm:text-5xl font-black uppercase text-right leading-[0.6] text-secondary pr-4">FOOD</div>
+            <div className="text-4xl sm:text-5xl font-black uppercase text-right leading-[0.6] text-secondary mt-2 pr-4">IS</div>
+            <div className="text-6xl sm:text-8xl font-black uppercase text-secondary rotate-90 origin-top-right mt-64 pr-4">FUEL</div>
           </div>
 
           {/* Date Label - Clickable */}
