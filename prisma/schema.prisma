@@ -19,11 +19,37 @@ model Profile {
   age       Int?
   gender    String?   // male, female
   activity  String?   // sedentary, light, moderate, active, very_active
+  dynamicTDEE Float?
+  tdeeSource  String?   // formula, dynamic
+  targets     Json?     // Saved macro targets
+  
+  // Goal Tracking
+  goalWeight  Float?
+  goalDate    DateTime?
+  startWeight Float?
+  startDate   DateTime?
+  goalType    String?   // lose, gain, maintain
+  
   updatedAt DateTime @updatedAt
   
   // Relations
   logs       FoodLog[]
   weightLogs WeightLog[]
+  goals      GoalLog[]
+}
+
+model GoalLog {
+  id          String   @id @default(uuid())
+  userId      String
+  type        String   // lose, gain, maintain
+  startWeight Float
+  goalWeight  Float
+  targetDate  DateTime
+  status      String   // active, completed, abandoned
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user Profile @relation(fields: [userId], references: [id])
 }
 
 model Food {

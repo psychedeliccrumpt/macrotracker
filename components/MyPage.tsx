@@ -69,7 +69,8 @@ const MyPage: React.FC<MyPageProps> = ({ weightLogs, logs, onUpdateProfile }) =>
       onUpdateProfile?.(updatedProfile);
     } catch (e) {
       console.error('Failed to save profile', e);
-      alert('Failed to save profile. Please try again.');
+      // We don't alert here anymore, we let the component handle it
+      throw e;
     }
   };
 
@@ -110,7 +111,7 @@ const MyPage: React.FC<MyPageProps> = ({ weightLogs, logs, onUpdateProfile }) =>
           onClick={() => setActiveTab('calculator')}
           className={getTabClass('calculator', 'bg-highlight')}
         >
-          Settings
+          Goals
         </button>
         <button
           onClick={handleLogout}
@@ -123,7 +124,12 @@ const MyPage: React.FC<MyPageProps> = ({ weightLogs, logs, onUpdateProfile }) =>
 
       <div className="flex-1 overflow-hidden relative bg-background">
         {activeTab === 'trends' && (
-          <WeightTrend weightLogs={weightLogs} foodLogs={logs} />
+          <WeightTrend
+            weightLogs={weightLogs}
+            foodLogs={logs}
+            currentProfile={profile}
+            onUpdateProfile={handleSaveProfile}
+          />
         )}
         {activeTab === 'calculator' && (
           <Calculator

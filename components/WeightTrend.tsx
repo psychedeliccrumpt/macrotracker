@@ -1,14 +1,16 @@
 import React from 'react';
-import { WeightLog, FoodItem } from '../types';
+import { WeightLog, FoodItem, UserProfile } from '../types';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import { TrendingUp, Activity } from 'lucide-react';
 
 interface WeightTrendProps {
   weightLogs: WeightLog[];
   foodLogs: FoodItem[];
+  currentProfile?: UserProfile;
+  onUpdateProfile?: (profile: UserProfile) => void;
 }
 
-const WeightTrend: React.FC<WeightTrendProps> = ({ weightLogs, foodLogs }) => {
+const WeightTrend: React.FC<WeightTrendProps> = ({ weightLogs, foodLogs, currentProfile, onUpdateProfile }) => {
   // 1. Group all dates and aggregate calories
   const aggregatedData: { [key: string]: { date: string, weight?: number, calories: number, timestamp: number } } = {};
 
@@ -41,6 +43,48 @@ const WeightTrend: React.FC<WeightTrendProps> = ({ weightLogs, foodLogs }) => {
   const currentWeight = sortedWeightLogs.length > 0 ? sortedWeightLogs[sortedWeightLogs.length - 1].weight : 0;
   const startWeight = sortedWeightLogs.length > 0 ? sortedWeightLogs[0].weight : 0;
   const weightDiff = currentWeight - startWeight;
+
+  // 4. Dynamic TDEE Calculation
+  // Find period with both weight and food data
+  const dataWithWeight = chartData.filter(d => d.weight !== undefined);
+  let dynamicTDEE = null;
+  let tdeeBreakdown = null;
+
+  if (dataWithWeight.length >= 2) {
+    const startEntry = dataWithWeight[0];
+    const endEntry = dataWithWeight[dataWithWeight.length - 1];
+
+    // Period in days
+    const days = Math.max(1, (endEntry.timestamp - startEntry.timestamp) / (1000 * 60 * 60 * 24));
+
+    if (days >= 3) { // Require at least 3 days for a meaningful trend
+      const totalWeightChange = endEntry.weight! - startEntry.weight!;
+
+      // Calculate average calories in THIS specific window
+      const windowData = chartData.filter(d => d.timestamp >= startEntry.timestamp && d.timestamp <= endEntry.timestamp);
+      const avgCaloriesInWindow = windowData.reduce((acc, curr) => acc + curr.calories, 0) / windowData.length;
+
+      // 1kg of fat ~ 7700 kcal
+      const calorieDeltaFromWeight = (totalWeightChange * 7700) / days;
+      dynamicTDEE = Math.round(avgCaloriesInWindow - calorieDeltaFromWeight);
+
+      tdeeBreakdown = {
+        days: Math.round(days),
+        weightChange: totalWeightChange.toFixed(1),
+        avgIntake: Math.round(avgCaloriesInWindow),
+        adjustment: Math.round(Math.abs(calorieDeltaFromWeight))
+      };
+    }
+  }
+
+  // Auto-sync dynamic TDEE to profile if it changes significantly
+  React.useEffect(() => {
+    if (dynamicTDEE && currentProfile && onUpdateProfile) {
+      if (currentProfile.dynamicTDEE !== dynamicTDEE) {
+        onUpdateProfile({ ...currentProfile, dynamicTDEE });
+      }
+    }
+  }, [dynamicTDEE]);
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -172,8 +216,70 @@ const WeightTrend: React.FC<WeightTrendProps> = ({ weightLogs, foodLogs }) => {
                 <span className="font-black text-secondary">PRO TIP:</span> Compare your yellow line (intake) with your purple line (weight) to see how your body reacts to different calorie levels over time.
               </p>
             </div>
+
+            {/* Dynamic TDEE Estimation Card */}
+            <div className="mt-8 mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <div className="bg-white border-3 border-secondary p-4 shadow-neo">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-primary border-2 border-secondary shadow-neo-sm">
+                    <Activity className="text-white" size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-[10px] font-black uppercase text-secondary/40 tracking-widest leading-none">Smart Analysis</h3>
+                    <p className="text-xl font-black text-secondary uppercase italic">Dynamic TDEE</p>
+                  </div>
+                </div>
+
+                {!dynamicTDEE ? (
+                  <div className="bg-highlight/20 p-4 border-2 border-dashed border-secondary/20">
+                    <p className="text-xs font-bold text-secondary/60 uppercase text-center">
+                      Need at least <span className="text-secondary">3 days</span> of data to unlock smart estimation.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="bg-highlight p-6 border-3 border-secondary flex items-baseline justify-between relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-16 h-16 bg-white/40 rotate-45 translate-x-8 -translate-y-8"></div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase text-secondary/60 tracking-widest mb-1">Your Maintenance Level</p>
+                        <p className="text-5xl font-black text-secondary">{dynamicTDEE} <span className="text-lg font-black uppercase">kcal</span></p>
+                      </div>
+                      <div className="text-right">
+                        <span className="px-2 py-1 bg-secondary text-white text-[10px] font-black uppercase tracking-widest border-2 border-secondary">Refined</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2">
+                      <div className="p-4 bg-gray-50 border-2 border-secondary/10">
+                        <p className="text-[10px] font-black uppercase text-secondary/40 mb-3 tracking-widest italic flex items-center gap-2">
+                          Calculation Breakdown
+                        </p>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-xs font-bold text-gray-500 font-mono">
+                            <span>Average Daily Intake</span>
+                            <span className="text-secondary">{tdeeBreakdown?.avgIntake} kcal</span>
+                          </div>
+                          <div className="flex justify-between text-xs font-bold text-primary font-mono">
+                            <span className="flex items-center gap-1">Weight Change Correction <span className="text-[9px] opacity-40">({tdeeBreakdown?.weightChange}kg)</span></span>
+                            <span>{Number(tdeeBreakdown?.weightChange) > 0 ? '-' : '+'}{tdeeBreakdown?.adjustment} kcal</span>
+                          </div>
+                          <div className="pt-2 mt-2 border-t-2 border-dashed border-secondary/10 flex justify-between text-sm font-black text-secondary font-mono">
+                            <span>Final Estimate</span>
+                            <span>{dynamicTDEE} kcal</span>
+                          </div>
+                        </div>
+                        <p className="mt-4 text-[9px] font-bold text-secondary/30 uppercase leading-tight italic">
+                          *Log regularly for better accuracy. Calculations are based on your {tdeeBreakdown?.days}-day trend.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </>
         )}
+
       </div>
     </div>
   );

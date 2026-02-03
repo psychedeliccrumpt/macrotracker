@@ -19,28 +19,58 @@ const AILogger: React.FC<AILoggerProps> = ({ onBack, onLogItems }) => {
 
     const recognitionRef = useRef<any>(null);
 
+    // We need to keep track of the text value when listening starts to append correctly
+    const baseTextRef = useRef('');
+
     useEffect(() => {
         // Check for Web Speech API support
         const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
         if (SpeechRecognition) {
             recognitionRef.current = new SpeechRecognition();
-            recognitionRef.current.continuous = false;
-            recognitionRef.current.interimResults = false;
+            recognitionRef.current.continuous = true; // Enable continuous listening
+            recognitionRef.current.interimResults = true; // Enable real-time results
             recognitionRef.current.lang = 'en-US';
 
+            recognitionRef.current.onstart = () => {
+                setIsListening(true);
+                baseTextRef.current = text; // Snapshot current text
+            };
+
             recognitionRef.current.onresult = (event: any) => {
-                const transcript = event.results[0][0].transcript;
-                setText(prev => (prev + ' ' + transcript).trim());
-                setIsListening(false);
+                let finalTranscript = '';
+                let interimTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+
+                // If we have final transcript, update baseTextRef for next chunks
+                if (finalTranscript) {
+                    baseTextRef.current = (baseTextRef.current + ' ' + finalTranscript).trim();
+                }
+
+                // Update visible text
+                const newText = (baseTextRef.current + ' ' + interimTranscript).trim();
+                setText(newText);
             };
 
             recognitionRef.current.onerror = (event: any) => {
                 console.error('Speech recognition error:', event.error);
+                if (event.error === 'no-speech') {
+                    return; // Ignore no-speech error in continuous mode
+                }
                 setIsListening(false);
                 setError(`Voice Error: ${event.error}`);
             };
 
             recognitionRef.current.onend = () => {
+                // In continuous mode, it might stop if user stops talking for a LONG time or network error
+                // We check existing isListening state to decide if we should restart (if we wanted to be aggressive)
+                // But generally stopping here is fine, user can toggle back on.
                 setIsListening(false);
             };
         }
@@ -50,6 +80,8 @@ const AILogger: React.FC<AILoggerProps> = ({ onBack, onLogItems }) => {
                 recognitionRef.current.stop();
             }
         };
+        // Remove 'text' dependency to avoid re-binding listener on every keystroke
+        // We use baseTextRef to handle state updates
     }, []);
 
     const toggleListening = () => {
@@ -58,8 +90,9 @@ const AILogger: React.FC<AILoggerProps> = ({ onBack, onLogItems }) => {
         } else {
             setError(null);
             try {
+                // Update baseTextRef just before starting to ensure we catch manual edits
+                baseTextRef.current = text;
                 recognitionRef.current?.start();
-                setIsListening(true);
             } catch (e) {
                 console.error('Recognition start failed', e);
                 setError('Could not start microphone. Check permissions.');

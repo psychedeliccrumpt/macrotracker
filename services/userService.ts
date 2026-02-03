@@ -92,5 +92,59 @@ export const userService = {
             return [];
         }
         return data || [];
+    },
+    /**
+     * Get goal history for a user
+     */
+    async getGoalHistory(userId: string): Promise<any[]> {
+        const { data, error } = await supabase
+            .from('GoalLog')
+            .select('*')
+            .eq('userId', userId)
+            .order('createdAt', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching goal history:', error);
+            return [];
+        }
+        return data || [];
+    },
+
+    /**
+     * Create a new goal log entry
+     */
+    async createGoalLog(userId: string, goalData: any) {
+        const { data, error } = await supabase
+            .from('GoalLog')
+            .insert({
+                id: uuidv4(),
+                userId,
+                ...goalData,
+                createdAt: new Date().toISOString()
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error creating goal log:', error);
+            throw error;
+        }
+        return data;
+    },
+
+    /**
+     * Delete a goal log entry
+     */
+    async deleteGoalLog(id: string) {
+        const { error } = await supabase
+            .from('GoalLog')
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            console.error('Error deleting goal log:', error);
+            throw error;
+        }
+        return true;
     }
 };

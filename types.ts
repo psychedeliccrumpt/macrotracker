@@ -24,6 +24,17 @@ export interface WeightLog {
   timestamp: number;
 }
 
+export interface GoalLog {
+  id: string;
+  userId: string;
+  type: 'lose' | 'gain' | 'maintain';
+  startWeight: number;
+  goalWeight: number;
+  targetDate: string;
+  status: 'active' | 'completed' | 'abandoned';
+  createdAt: string;
+}
+
 export interface Recipe {
   id: string;
   name: string;
@@ -51,9 +62,20 @@ export interface UserProfile {
   weight?: number; // kg
   height?: number; // cm
   activity?: number; // multiplier
+  dynamicTDEE?: number;
+  tdeeSource?: 'formula' | 'dynamic';
+  tdeeAtGoalStart?: number;
+
+  // Goal Tracking
+  goalWeight?: number;
+  goalDate?: string | Date;
+  startWeight?: number;
+  startDate?: string | Date;
+  goalType?: 'lose' | 'gain' | 'maintain';
+
   targets?: Macros;
   updatedAt?: string;
 }
 
 export type AppView = 'dashboard' | 'log' | 'calendar' | 'my' | 'scan' | 'search' | 'recipe' | 'ai-log';
-export type MyTab = 'trends' | 'calculator';
+export type MyTab = 'trends' | 'calculator' | 'goals';
