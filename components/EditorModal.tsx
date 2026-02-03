@@ -121,11 +121,26 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
       return null;
     }
 
-    const m = !isExistingItem ? (initialData as SearchResult).macros : (initialData as FoodItem);
-    const q = isExistingItem ? (initialData as FoodItem).quantity : (isPer100g ? 100 : 1);
+    // For new items (Search/Scan), the macros are always "Per Base Serving"
+    // So we should simply divide by the weight of that base serving.
+    // relying on 'quantity'/'unit' here is risky as Gemini might return Qty:1 Unit:g for a 113g serving.
+    if (!isExistingItem) {
+      if (gramsPerServing) {
+        const m = (initialData as SearchResult).macros;
+        return {
+          calories: m.calories / gramsPerServing,
+          protein: m.protein / gramsPerServing,
+          fat: m.fat / gramsPerServing,
+          carbs: m.carbs / gramsPerServing,
+        };
+      }
+      return null;
+    }
 
-    // If user is editing a gram-based log, use that
-    const currentUnit = isExistingItem ? (initialData as FoodItem).unit : initialUnit;
+    // For existing items, macros are saved values for the saved quantity
+    const m = (initialData as FoodItem);
+    const q = (initialData as FoodItem).quantity;
+    const currentUnit = (initialData as FoodItem).unit;
     const initialGrams = getGramsPerUnit(currentUnit) * q;
 
     if (!initialGrams) return null;
