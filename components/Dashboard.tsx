@@ -145,14 +145,14 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, targets, onDeleteLog, onEdi
 
           {/* Slogan */}
           <div className="absolute top-0 right-0 p-2 z-10 opacity-10 pointer-events-none">
-            <h1 className="text-6xl font-black uppercase text-right leading-none text-secondary">FOOD<br />IS<br />FUEL</h1>
+            <h1 className="text-4xl sm:text-6xl font-black uppercase text-right leading-none text-secondary">FOOD<br />IS<br />FUEL</h1>
           </div>
 
           {/* Date Label - Clickable */}
-          <div className="absolute top-0 left-0 p-4 z-10 cursor-pointer group" onClick={onDateClick}>
-            <div className="inline-block bg-highlight px-4 py-2 border-3 border-secondary shadow-[2px_2px_0px_#18181B] transform -rotate-1 group-hover:rotate-0 group-hover:scale-105 transition-transform group-active:translate-y-1 group-active:shadow-none">
-              <p className="text-secondary font-black text-lg uppercase tracking-widest font-mono leading-none flex items-center gap-2">
-                {dateStr} <span className="text-xs bg-secondary text-white px-1 ml-1 rounded-sm">▼</span>
+          <div className="absolute top-0 left-0 p-3 sm:p-4 z-10 cursor-pointer group" onClick={onDateClick}>
+            <div className="inline-block bg-highlight px-2.5 py-1.5 sm:px-4 sm:py-2 border-3 border-secondary shadow-[2px_2px_0px_#18181B] transform -rotate-1 group-hover:rotate-0 group-hover:scale-105 transition-transform group-active:translate-y-1 group-active:shadow-none">
+              <p className="text-secondary font-black text-xs sm:text-lg uppercase tracking-widest font-mono leading-none flex items-center gap-1.5 sm:gap-2">
+                {dateStr} <span className="text-[10px] bg-secondary text-white px-1 ml-1 rounded-sm">▼</span>
               </p>
             </div>
           </div>
@@ -273,32 +273,47 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, targets, onDeleteLog, onEdi
                   <div
                     key={item.id}
                     onClick={() => onEditLog(item)}
-                    className="bg-surface p-4 border-3 border-secondary shadow-neo flex justify-between items-center transition-transform hover:-translate-y-1 group cursor-pointer active:scale-[0.98]"
+                    className="bg-surface p-4 border-3 border-secondary shadow-neo flex justify-between items-start transition-transform hover:-translate-y-1 group cursor-pointer active:scale-[0.98]"
                   >
-                    <div>
-                      <h3 className="font-black text-secondary text-lg leading-tight uppercase">{item.name}</h3>
-                      <div className="flex flex-wrap items-center gap-2 mt-2">
-                        <span className="flex items-center gap-1 text-[10px] font-mono font-bold text-gray-500 bg-gray-50 px-1 border border-secondary">
-                          <Clock size={10} strokeWidth={3} /> {formatLocalTime(item.timestamp)}
-                        </span>
-                        <span className="text-xs font-mono font-bold bg-gray-100 px-2 border border-secondary text-gray-600">
-                          {item.quantity} {item.unit}
-                        </span>
-                        <span className="text-xs font-mono font-bold text-secondary">
-                          {Math.round(item.calories)} kcal
-                        </span>
+                    <div className="flex-1 mr-2">
+                      <div className="space-y-0.5 mb-2 focus:outline-none">
+                        {item.brand && (
+                          <div className="block leading-none">
+                            <span className="text-[10px] font-black uppercase text-primary/70 italic tracking-tighter">
+                              {item.brand}
+                            </span>
+                          </div>
+                        )}
+                        <h3 className="font-black text-secondary text-lg leading-tight uppercase">{item.name}</h3>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="block">
+                          <span className="flex items-center w-fit gap-1 text-[10px] font-mono font-bold text-gray-500 bg-gray-50 px-1 border border-secondary">
+                            <Clock size={10} strokeWidth={3} /> {formatLocalTime(item.timestamp)}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-mono font-bold bg-gray-100 px-2 border border-secondary text-gray-600">
+                            {item.quantity} {item.unit}
+                          </span>
+                          <span className="text-xs font-mono font-bold text-secondary">
+                            {Math.round(item.calories)} kcal
+                          </span>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-gray-300 group-hover:text-primary transition-colors">
-                        <Edit2 size={18} />
+
+                    <div className="flex items-center gap-1 mt-auto pb-1">
+                      <div className="p-2 text-gray-300 group-hover:text-primary transition-colors hover:bg-primary/5 border-2 border-transparent">
+                        <Edit2 size={18} strokeWidth={3} />
                       </div>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           onDeleteLog(item.id);
                         }}
-                        className="p-3 text-secondary hover:text-white hover:bg-accent border-3 border-transparent hover:border-secondary transition-all rounded-none"
+                        className="p-2 text-secondary hover:text-white hover:bg-accent border-2 border-transparent hover:border-secondary transition-all rounded-none"
                       >
                         <Trash2 size={20} strokeWidth={2.5} />
                       </button>

@@ -46,7 +46,7 @@ export const logService = {
             servingSize: log.servingSize,
             source: log.source || 'manual',
             timestamp: parseTimestamp(log.date),
-            // brand: log.food?.brand || log.brand, // Temporarily disabled brand fetch
+            brand: log.brand,
         }));
     },
 
@@ -69,9 +69,10 @@ export const logService = {
                 quantity: foodItem.quantity,
                 unit: foodItem.unit,
                 servingSize: foodItem.servingSize,
+                brand: foodItem.brand,
                 source: foodItem.source || 'manual',
                 date: date ? date.toISOString() : new Date().toISOString(),
-                mealType: 'snack', // Default, could be enhanced later
+                mealType: 'snack',
             })
             .select()
             .single();
@@ -89,6 +90,7 @@ export const logService = {
             quantity: data.quantity,
             unit: data.unit,
             servingSize: data.servingSize,
+            brand: data.brand,
             source: data.source,
             timestamp: parseTimestamp(data.date),
         } as FoodItem;
@@ -109,6 +111,7 @@ export const logService = {
                 quantity: updates.quantity,
                 unit: updates.unit,
                 servingSize: updates.servingSize,
+                brand: updates.brand,
             })
             .eq('id', logId)
             .select()

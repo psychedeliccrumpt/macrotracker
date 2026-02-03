@@ -17,7 +17,7 @@ import { Auth } from './components/Auth';
 import { userService } from './services/userService';
 import { logService } from './services/logService';
 import { noteService } from './services/noteService';
-import { parseTimestamp } from './utils/dateUtils';
+import { getLocalDateString, parseTimestamp } from './utils/dateUtils';
 
 const AuthenticatedApp: React.FC = () => {
   const { session, loading, user } = useAuth();
@@ -123,15 +123,22 @@ const AuthenticatedApp: React.FC = () => {
 
   const generateId = () => Math.random().toString(36).substring(2, 9);
 
+  const getEffectiveLogDate = () => {
+    const now = new Date();
+    if (getLocalDateString(selectedDate) === getLocalDateString(now)) {
+      return now;
+    }
+    return selectedDate;
+  };
+
   const addLog = async (data: Omit<FoodItem, 'timestamp'>) => {
     if (!user) return;
     try {
-      // Use selectedDate for the log timestamp
-      // Pass id as foodId if present
-      const newItem = await logService.create(user.id, { ...data, foodId: data.id }, selectedDate);
-      setLogs(prev => [newItem, ...prev]); // Prepend to show most recent first
+      const logDate = getEffectiveLogDate();
+      const newItem = await logService.create(user.id, { ...data, foodId: data.id }, logDate);
+      setLogs(prev => [newItem, ...prev]);
       setTempScanResult(null);
-      setView('dashboard'); // Redirect to dashboard after logging
+      setView('dashboard');
     } catch (e: any) {
       console.error('Failed to add log', e);
       alert(`Failed to save log: ${e.message || 'Unknown error'}`);
@@ -141,6 +148,7 @@ const AuthenticatedApp: React.FC = () => {
   const addLogs = async (items: any[]) => {
     if (!user) return;
     try {
+      const logDate = getEffectiveLogDate();
       const newItems = await Promise.all(items.map(item =>
         logService.create(user.id, {
           name: item.name,
@@ -153,7 +161,7 @@ const AuthenticatedApp: React.FC = () => {
           servingSize: item.servingSize,
           brand: item.brand,
           source: 'search'
-        }, selectedDate) // Use selectedDate
+        }, logDate)
       ));
       setLogs(prev => [...newItems, ...prev]);
       setView('dashboard');
@@ -277,7 +285,6 @@ const AuthenticatedApp: React.FC = () => {
             // Parse local date string YYYY-MM-DD back to local Date object
             const [y, m, d] = dateStr.split('-').map(Number);
             setSelectedDate(new Date(y, m - 1, d));
-            setView('dashboard');
           }}
           selectedDate={selectedDate} // Pass current selected date to highlight
         />;
@@ -381,7 +388,7 @@ const AuthenticatedApp: React.FC = () => {
         <div className="h-[80px] bg-white border-t-3 border-secondary grid grid-cols-4 relative z-30 shadow-[0px_-4px_0px_0px_rgba(0,0,0,0.05)]">
           <NavButton active={view === 'dashboard'} onClick={() => setView('dashboard')} icon={LayoutGrid} label="Dash" />
           <NavButton active={view === 'log' || view === 'search' || view === 'recipe'} onClick={() => setView('log')} icon={NotebookPen} label="Log" />
-          <NavButton active={view === 'calendar'} onClick={() => setView('calendar')} icon={CalendarIcon} label="Calendar" />
+          <NavButton active={view === 'calendar'} onClick={() => setView('calendar')} icon={CalendarIcon} label="History" />
           <NavButton active={view === 'my'} onClick={() => setView('my')} icon={CircleUser} label="My" />
         </div>
       )}

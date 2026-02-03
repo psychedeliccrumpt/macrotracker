@@ -108,29 +108,41 @@ const Calendar: React.FC<CalendarProps> = ({ logs, weightLogs, dayNotes, onSelec
             setSelectedDateStr(dateStr);
             onSelectDate(dateStr);
           }}
-          className={`h-24 relative border-r-2 border-b-2 border-secondary flex flex-col items-start justify-between p-1 transition-all ${isSelected ? 'bg-primary text-white shadow-[inset_0_0_10px_rgba(0,0,0,0.2)]' : 'bg-surface hover:bg-yellow-50'}`}
+          className={`h-24 relative border-r-2 border-b-2 border-secondary flex flex-col justify-between p-2 transition-all overflow-hidden ${isSelected ? 'bg-primary text-white shadow-[inset_0_0_10px_rgba(0,0,0,0.2)]' : 'bg-surface hover:bg-yellow-50'}`}
         >
-          <div className="w-full flex justify-between items-start">
-            <span className={`text-xs font-black font-mono ${isToday ? 'bg-accent text-secondary px-1 border border-secondary' : ''}`}>{d}</span>
+          {/* Large Background Date Number */}
+          <span className={`absolute -top-1 -left-1 text-5xl font-black leading-none tracking-tighter opacity-[0.07] pointer-events-none select-none ${isSelected ? 'text-white' : 'text-secondary'}`}>
+            {d}
+          </span>
+
+          {/* Today Indicator (Subtle) */}
+          {isToday && (
+            <div className={`absolute top-0 left-0 w-0 h-0 border-t-[20px] border-l-[20px] border-t-accent border-l-transparent -rotate-90 pointer-events-none`}></div>
+          )}
+
+          {/* Top Row: Weight & Note Icon */}
+          <div className="w-full flex flex-col items-end gap-1 relative z-10">
             {weightLog && (
-              <span className={`text-[9px] font-mono font-bold flex items-center gap-0.5 ${isSelected ? 'text-white/80' : 'text-primary'}`}>
-                <Scale size={8} /> {weightLog.weight}
+              <span className={`text-[10px] font-mono font-black flex items-center gap-0.5 leading-none ${isSelected ? 'text-white' : 'text-primary'}`}>
+                <Scale size={10} strokeWidth={3} /> {weightLog.weight}
               </span>
+            )}
+            {hasNote && (
+              <div className={`${isSelected ? 'text-white/60' : 'text-secondary/30'}`}>
+                <StickyNote size={12} strokeWidth={3} />
+              </div>
             )}
           </div>
 
-          {hasNote && (
-            <div className={`absolute top-1 right-1 ${isSelected ? 'text-white/60' : 'text-primary/40'}`}>
-              <StickyNote size={10} strokeWidth={3} />
-            </div>
-          )}
-
+          {/* Bottom Row: Calories & Intake Indicators */}
           {hasLogs && (
-            <div className="w-full flex flex-col items-end">
-              <span className={`text-[10px] font-mono font-bold ${isSelected ? 'text-white' : 'text-secondary'}`}>{Math.round(totalCals)}</span>
+            <div className="w-full flex flex-col items-end relative z-10">
+              <span className={`text-[11px] font-mono font-black leading-none mb-1 ${isSelected ? 'text-white' : 'text-secondary'}`}>
+                {Math.round(totalCals)}
+              </span>
               <div className="flex gap-0.5">
-                <div className="w-2 h-2 bg-white border border-secondary"></div>
-                <div className="w-2 h-2 bg-accent border border-secondary"></div>
+                <div className={`w-1.5 h-1.5 border border-secondary ${isSelected ? 'bg-white' : 'bg-primary'}`}></div>
+                <div className={`w-1.5 h-1.5 border border-secondary ${isSelected ? 'bg-white' : 'bg-accent'}`}></div>
               </div>
             </div>
           )}
