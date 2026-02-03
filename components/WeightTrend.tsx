@@ -25,8 +25,8 @@ const WeightTrend: React.FC<WeightTrendProps> = ({ weightLogs, foodLogs, current
     aggregatedData[date].calories += log.calories;
   });
 
-  // Process weight logs
-  weightLogs.forEach(log => {
+  // Process weight logs - Sort ascending first to ensure latest per day overwrites
+  [...weightLogs].sort((a, b) => a.timestamp - b.timestamp).forEach(log => {
     const date = new Date(log.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
     const dayStart = new Date(log.timestamp).setHours(0, 0, 0, 0);
 
