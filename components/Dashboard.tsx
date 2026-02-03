@@ -149,7 +149,7 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, targets, onDeleteLog, onEdi
 
           {/* Slogan */}
           <div className="absolute top-0 right-0 p-2 z-10 opacity-10 pointer-events-none">
-            <h1 className="text-5xl sm:text-6xl font-black uppercase text-right leading-none text-secondary">FOOD<br />IS<br />FUEL</h1>
+            <h1 className="text-6xl sm:text-7xl font-black uppercase text-right leading-none text-secondary">FOOD<br />IS<br />FUEL</h1>
           </div>
 
           {/* Date Label - Clickable */}
