@@ -145,14 +145,14 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, targets, onDeleteLog, onEdi
 
           {/* Slogan */}
           <div className="absolute top-0 right-0 p-2 z-10 opacity-10 pointer-events-none">
-            <h1 className="text-4xl sm:text-6xl font-black uppercase text-right leading-none text-secondary">FOOD<br />IS<br />FUEL</h1>
+            <h1 className="text-5xl sm:text-6xl font-black uppercase text-right leading-none text-secondary">FOOD<br />IS<br />FUEL</h1>
           </div>
 
           {/* Date Label - Clickable */}
           <div className="absolute top-0 left-0 p-3 sm:p-4 z-10 cursor-pointer group" onClick={onDateClick}>
-            <div className="inline-block bg-highlight px-2.5 py-1.5 sm:px-4 sm:py-2 border-3 border-secondary shadow-[2px_2px_0px_#18181B] transform -rotate-1 group-hover:rotate-0 group-hover:scale-105 transition-transform group-active:translate-y-1 group-active:shadow-none">
-              <p className="text-secondary font-black text-xs sm:text-lg uppercase tracking-widest font-mono leading-none flex items-center gap-1.5 sm:gap-2">
-                {dateStr} <span className="text-[10px] bg-secondary text-white px-1 ml-1 rounded-sm">▼</span>
+            <div className="inline-block bg-highlight px-3 py-2 sm:px-4 sm:py-2 border-3 border-secondary shadow-[2px_2px_0px_#18181B] transform -rotate-1 group-hover:rotate-0 group-hover:scale-105 transition-transform group-active:translate-y-1 group-active:shadow-none">
+              <p className="text-secondary font-black text-sm sm:text-lg uppercase tracking-widest font-mono leading-none flex items-center gap-1.5 sm:gap-2">
+                {dateStr} <span className="text-xs bg-secondary text-white px-1 ml-1 rounded-sm">▼</span>
               </p>
             </div>
           </div>
