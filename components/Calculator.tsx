@@ -102,13 +102,17 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }
     }
   };
 
+  const calculateFormulaTDEE = (weight: number) => {
+    let bmr = 10 * weight + 6.25 * formData.height - 5 * formData.age;
+    bmr = (formData.gender === 'male') ? bmr + 5 : bmr - 161;
+    return Math.round(bmr * formData.activity);
+  };
+
   const calculateTDEE = (weight: number) => {
     if (tdeeSource === 'dynamic' && currentProfile.dynamicTDEE) {
       return currentProfile.dynamicTDEE;
     }
-    let bmr = 10 * weight + 6.25 * formData.height - 5 * formData.age;
-    bmr = (formData.gender === 'male') ? bmr + 5 : bmr - 161;
-    return Math.round(bmr * formData.activity);
+    return calculateFormulaTDEE(weight);
   };
 
   const applyRecommendation = () => {
@@ -611,7 +615,7 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }
               >
                 <div className="flex justify-between items-center">
                   <span className="font-black uppercase">Formula (Mifflin-St Jeor)</span>
-                  <span className="text-sm font-black italic">{calculateTDEE(formData.weight)} kcal</span>
+                  <span className="text-sm font-black italic">{calculateFormulaTDEE(formData.weight)} kcal</span>
                 </div>
                 <p className="text-[10px] font-bold opacity-60 mt-1 uppercase">Standard mathematical estimation</p>
               </button>
