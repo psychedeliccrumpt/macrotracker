@@ -129,8 +129,12 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, targets, onDeleteLog, onEdi
     { name: 'Remaining', value: remainingCals, color: COLORS.remaining },
   ];
 
-  const dateOptions: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'short', day: 'numeric' };
-  const dateStr = (selectedDate || new Date()).toLocaleDateString('en-US', dateOptions);
+  const dateOptions: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' };
+  const fullDateStr = (selectedDate || new Date()).toLocaleDateString('en-US', dateOptions);
+  // Expected format: "Tuesday, Feb 3, 2026"
+  const parts = fullDateStr.split(', ');
+  const weekday = parts[0];
+  const monthDayYear = parts[1] + (parts[2] ? `, ${parts[2]}` : '');
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -144,18 +148,19 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, targets, onDeleteLog, onEdi
         <div className="p-6 bg-surface border-b-3 border-secondary shadow-neo mb-8 relative">
 
           {/* Slogan */}
-          <div className="absolute top-0 right-0 z-0 opacity-10 pointer-events-none flex flex-col items-end pt-6">
-            <div className="text-4xl sm:text-5xl font-black uppercase text-right leading-[0.6] text-secondary pr-4">FOOD</div>
-            <div className="text-4xl sm:text-5xl font-black uppercase text-right leading-[0.6] text-secondary mt-2 pr-4">IS</div>
-            <div className="text-6xl sm:text-8xl font-black uppercase text-secondary rotate-90 origin-top-right mt-64 pr-4">FUEL</div>
+          <div className="absolute top-0 right-0 p-2 z-10 opacity-10 pointer-events-none">
+            <h1 className="text-5xl sm:text-6xl font-black uppercase text-right leading-none text-secondary">FOOD<br />IS<br />FUEL</h1>
           </div>
 
           {/* Date Label - Clickable */}
           <div className="absolute top-0 left-0 p-3 sm:p-4 z-10 cursor-pointer group" onClick={onDateClick}>
-            <div className="inline-block bg-highlight px-3 py-2 sm:px-4 sm:py-2 border-3 border-secondary shadow-[2px_2px_0px_#18181B] transform -rotate-1 group-hover:rotate-0 group-hover:scale-105 transition-transform group-active:translate-y-1 group-active:shadow-none">
-              <p className="text-secondary font-black text-sm sm:text-lg uppercase tracking-widest font-mono leading-none flex items-center gap-1.5 sm:gap-2">
-                {dateStr} <span className="text-xs bg-secondary text-white px-1 ml-1 rounded-sm">▼</span>
-              </p>
+            <div className="inline-block bg-highlight px-3 py-1.5 sm:px-4 sm:py-2 border-3 border-secondary shadow-[2px_2px_0px_#18181B] transform -rotate-1 group-hover:rotate-0 group-hover:scale-105 transition-transform group-active:translate-y-1 group-active:shadow-none">
+              <div className="text-secondary font-black uppercase tracking-widest font-mono flex flex-col items-start leading-[1.1]">
+                <span className="text-[11px] sm:text-[14px] opacity-80 tracking-widest -mb-0.5">{weekday}</span>
+                <p className="text-sm sm:text-lg flex items-center gap-1.5 sm:gap-2">
+                  {monthDayYear} <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 bg-secondary text-white flex items-center justify-center rounded-sm text-[8px] sm:text-[10px] leading-none">▼</span>
+                </p>
+              </div>
             </div>
           </div>
 
