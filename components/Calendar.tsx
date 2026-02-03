@@ -1,18 +1,42 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Scale } from 'lucide-react';
-import { FoodItem, Macros, WeightLog } from '../types';
+import { ChevronLeft, ChevronRight, Scale, StickyNote, Save, Edit3 } from 'lucide-react';
+import { FoodItem, Macros, WeightLog, DayNote } from '../types';
 import { getLocalDateString, formatLocalDateLong } from '../utils/dateUtils';
 
 interface CalendarProps {
   logs: FoodItem[];
   weightLogs: WeightLog[];
+  dayNotes: DayNote[];
   onSelectDate: (dateString: string) => void;
+  onSaveNote: (date: string, content: string) => Promise<void>;
   selectedDate?: Date;
 }
 
-const Calendar: React.FC<CalendarProps> = ({ logs, weightLogs, onSelectDate, selectedDate }) => {
+const Calendar: React.FC<CalendarProps> = ({ logs, weightLogs, dayNotes, onSelectDate, onSaveNote, selectedDate }) => {
   const [currentDate, setCurrentDate] = useState(selectedDate || new Date());
   const [selectedDateStr, setSelectedDateStr] = useState<string>(getLocalDateString(selectedDate || new Date()));
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Sync note draft when selected date changes
+  React.useEffect(() => {
+    const currentNote = dayNotes.find(n => n.date === selectedDateStr);
+    setNoteDraft(currentNote?.content || '');
+    setIsEditingNote(false);
+  }, [selectedDateStr, dayNotes]);
+
+  const handleSaveNote = async () => {
+    setIsSaving(true);
+    try {
+      await onSaveNote(selectedDateStr, noteDraft);
+      setIsEditingNote(false);
+    } catch (e) {
+      console.error("Failed to save note", e);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -40,7 +64,13 @@ const Calendar: React.FC<CalendarProps> = ({ logs, weightLogs, onSelectDate, sel
     const dayWeights = weightLogs.filter(log => {
       const logDate = getLocalDateString(new Date(log.timestamp));
       return logDate === dateStr;
-    }).sort((a, b) => b.timestamp - a.timestamp);
+    }).sort((a, b) => {
+      // First sort by timestamp
+      if (b.timestamp !== a.timestamp) return b.timestamp - a.timestamp;
+      // Then by createdAt for corrections
+      if (b.createdAt && a.createdAt) return b.createdAt.localeCompare(a.createdAt);
+      return 0;
+    });
 
     return dayWeights.length > 0 ? dayWeights[0] : null;
   };
@@ -65,6 +95,7 @@ const Calendar: React.FC<CalendarProps> = ({ logs, weightLogs, onSelectDate, sel
       const dateStr = formatDate(year, month, d);
       const dayLogs = getLogsForDate(dateStr);
       const weightLog = getWeightForDate(dateStr);
+      const hasNote = dayNotes.some(n => n.date === dateStr);
       const hasLogs = dayLogs.length > 0;
       const isSelected = selectedDateStr === dateStr;
       const isToday = dateStr === getLocalDateString();
@@ -87,6 +118,12 @@ const Calendar: React.FC<CalendarProps> = ({ logs, weightLogs, onSelectDate, sel
               </span>
             )}
           </div>
+
+          {hasNote && (
+            <div className={`absolute top-1 right-1 ${isSelected ? 'text-white/60' : 'text-primary/40'}`}>
+              <StickyNote size={10} strokeWidth={3} />
+            </div>
+          )}
 
           {hasLogs && (
             <div className="w-full flex flex-col items-end">
@@ -181,6 +218,72 @@ const Calendar: React.FC<CalendarProps> = ({ logs, weightLogs, onSelectDate, sel
               </div>
             </div>
           )}
+
+          {/* Notes Section */}
+          <div className="bg-highlight/30 border-3 border-secondary border-dashed p-4 shadow-neo-sm relative overflow-hidden group">
+            <div className="flex justify-between items-center mb-3">
+              <div className="flex items-center gap-2">
+                <StickyNote size={18} className="text-secondary" />
+                <h4 className="text-xs font-black uppercase text-secondary tracking-widest">Daily Notes</h4>
+              </div>
+              {!isEditingNote && (
+                <button
+                  onClick={() => setIsEditingNote(true)}
+                  className="p-1 px-2 bg-white border-2 border-secondary text-[10px] font-black uppercase shadow-neo-mini hover:bg-highlight flex items-center gap-1 transition-all"
+                >
+                  <Edit3 size={10} /> {noteDraft ? 'Edit' : 'Add Note'}
+                </button>
+              )}
+            </div>
+
+            {isEditingNote ? (
+              <div className="space-y-3 animate-in fade-in zoom-in-95 duration-200">
+                <textarea
+                  value={noteDraft}
+                  onChange={(e) => setNoteDraft(e.target.value)}
+                  placeholder="How was your day? Any special events or mood tracking?"
+                  className="w-full h-32 p-3 bg-white border-3 border-secondary outline-none font-bold text-sm text-secondary focus:ring-0 placeholder:text-gray-300 resize-none"
+                  autoFocus
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => {
+                      const currentNote = dayNotes.find(n => n.date === selectedDateStr);
+                      setNoteDraft(currentNote?.content || '');
+                      setIsEditingNote(false);
+                    }}
+                    className="px-4 py-2 border-2 border-secondary text-[10px] font-black uppercase hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveNote}
+                    disabled={isSaving}
+                    className="px-4 py-2 bg-secondary text-white border-2 border-secondary text-[10px] font-black uppercase shadow-neo-mini hover:bg-primary flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {isSaving ? <span className="animate-spin text-xs italic">Saving...</span> : <><Save size={12} /> Save Note</>}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="min-h-[60px]">
+                {noteDraft ? (
+                  <p className="text-sm font-bold text-secondary leading-relaxed whitespace-pre-wrap">
+                    {noteDraft}
+                  </p>
+                ) : (
+                  <p className="text-xs font-bold text-secondary/30 italic uppercase tracking-wider text-center py-4">
+                    NO NOTES FOR THIS DAY
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Artistic flair */}
+            <div className="absolute -bottom-2 -right-2 opacity-5 pointer-events-none group-hover:rotate-6 transition-transform">
+              <StickyNote size={60} />
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar as CalendarIcon, LayoutGrid, CircleUser, NotebookPen } from 'lucide-react';
-import { AppView, FoodItem, Recipe, SearchResult, Macros, UserProfile, WeightLog } from './types';
+import { AppView, FoodItem, Recipe, SearchResult, Macros, UserProfile, WeightLog, DayNote } from './types';
 import Scanner from './components/Scanner';
 import Search from './components/Search';
 import RecipeBuilder from './components/RecipeBuilder';
@@ -15,8 +15,9 @@ import Calendar from './components/Calendar';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Auth } from './components/Auth';
 import { userService } from './services/userService';
-import { v4 as uuidv4 } from 'uuid';
 import { logService } from './services/logService';
+import { noteService } from './services/noteService';
+import { parseTimestamp } from './utils/dateUtils';
 
 const AuthenticatedApp: React.FC = () => {
   const { session, loading, user } = useAuth();
@@ -30,6 +31,9 @@ const AuthenticatedApp: React.FC = () => {
   // Load Weight Logs sfgdfgdzsdvsfvs
   // Load Weight Logs from Database
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
+
+  // Day Notes from Database
+  const [dayNotes, setDayNotes] = useState<DayNote[]>([]);
 
   // Load Recipes from LocalStorage
   const [recipes, setRecipes] = useState<Recipe[]>(() => {
@@ -98,9 +102,13 @@ const AuthenticatedApp: React.FC = () => {
       setWeightLogs(wLogs.map((item: any) => ({
         id: item.id,
         weight: item.weight,
-        timestamp: new Date(item.date).getTime(),
+        timestamp: parseTimestamp(item.date),
         createdAt: item.createdAt
       })));
+
+      // Load Day Notes
+      const notes = await noteService.getNotes(user.id);
+      setDayNotes(notes);
     } catch (e) {
       console.error('Failed to load logs', e);
     } finally {
@@ -163,7 +171,7 @@ const AuthenticatedApp: React.FC = () => {
       const newLog: WeightLog = {
         id: dbInfo.id,
         weight: dbInfo.weight,
-        timestamp: new Date(dbInfo.date).getTime(),
+        timestamp: parseTimestamp(dbInfo.date),
         createdAt: dbInfo.createdAt
       };
       setWeightLogs(prev => [newLog, ...prev]);
@@ -256,6 +264,15 @@ const AuthenticatedApp: React.FC = () => {
         return <Calendar
           logs={logs}
           weightLogs={weightLogs}
+          dayNotes={dayNotes}
+          onSaveNote={async (date, content) => {
+            if (!user) return;
+            const updatedNote = await noteService.saveNote(user.id, date, content);
+            setDayNotes(prev => {
+              const filtered = prev.filter(n => n.date !== date);
+              return [...filtered, updatedNote];
+            });
+          }}
           onSelectDate={(dateStr) => {
             // Parse local date string YYYY-MM-DD back to local Date object
             const [y, m, d] = dateStr.split('-').map(Number);

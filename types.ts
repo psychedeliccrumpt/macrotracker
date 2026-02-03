@@ -26,6 +26,14 @@ export interface WeightLog {
   createdAt?: string;
 }
 
+export interface DayNote {
+  id: string;
+  userId: string;
+  content: string;
+  date: string; // YYYY-MM-DD
+  createdAt: string;
+}
+
 export interface GoalLog {
   id: string;
   userId: string;

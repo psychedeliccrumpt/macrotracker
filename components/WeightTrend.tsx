@@ -56,7 +56,11 @@ const WeightTrend: React.FC<WeightTrendProps> = ({ weightLogs, foodLogs, current
   // Convert to sorted array
   const chartData = Object.values(aggregatedData).sort((a, b) => a.timestamp - b.timestamp);
 
-  const sortedWeightLogs = [...weightLogs].sort((a, b) => a.timestamp - b.timestamp);
+  const sortedWeightLogs = [...weightLogs].sort((a, b) => {
+    if (a.timestamp !== b.timestamp) return a.timestamp - b.timestamp;
+    if (a.createdAt && b.createdAt) return a.createdAt.localeCompare(b.createdAt);
+    return 0;
+  });
   const currentWeight = sortedWeightLogs.length > 0 ? sortedWeightLogs[sortedWeightLogs.length - 1].weight : 0;
   const startWeight = sortedWeightLogs.length > 0 ? sortedWeightLogs[0].weight : 0;
   const weightDiff = currentWeight - startWeight;

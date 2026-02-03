@@ -118,3 +118,15 @@ model WeightLog {
   profile   Profile  @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
 }
+
+model DayNote {
+  id        String   @id @default(uuid())
+  userId    String
+  content   String   @db.Text
+  date      String   // Using string YYYY-MM-DD for simpler daily lookups
+  createdAt DateTime @default(now())
+  
+  profile   Profile  @relation(fields: [userId], references: [id])
+
+  @@unique([userId, date])
+}
