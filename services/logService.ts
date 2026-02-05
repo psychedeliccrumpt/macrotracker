@@ -7,15 +7,17 @@ export const logService = {
     /**
      * Get all food logs for a user, optionally filtered by date
      */
+    /**
+     * Get all food logs for a user, optionally filtered by date
+     */
     async getAll(userId: string, date?: Date): Promise<FoodItem[]> {
         let query = supabase
             .from('FoodLog')
-            .select('*') // Reverted to simple select to fix fetch error
+            .select('*')
             .eq('userId', userId)
             .order('date', { ascending: false });
 
         if (date) {
-            // Filter by specific date (same day)
             const startOfDay = new Date(date);
             startOfDay.setHours(0, 0, 0, 0);
             const endOfDay = new Date(date);
@@ -33,7 +35,6 @@ export const logService = {
             return [];
         }
 
-        // Map DB structure to App structure
         return data.map((log: any) => ({
             id: log.id,
             name: log.name,
@@ -44,6 +45,7 @@ export const logService = {
             quantity: log.quantity,
             unit: log.unit,
             servingSize: log.servingSize,
+            servingWeight: log.servingWeight, // Added
             source: log.source || 'manual',
             timestamp: parseTimestamp(log.date),
             brand: log.brand,
@@ -59,8 +61,7 @@ export const logService = {
             .insert({
                 id: uuidv4(),
                 userId: userId,
-                foodId: foodItem.foodId || null, // Ensure null if empty string
-                // brand: foodItem.brand, // Database migration failed, cannot save brand to Log table yet
+                foodId: foodItem.foodId || null,
                 name: foodItem.name,
                 calories: foodItem.calories,
                 protein: foodItem.protein,
@@ -69,6 +70,7 @@ export const logService = {
                 quantity: foodItem.quantity,
                 unit: foodItem.unit,
                 servingSize: foodItem.servingSize,
+                servingWeight: (foodItem as any).servingWeight, // Added
                 brand: foodItem.brand,
                 source: foodItem.source || 'manual',
                 date: date ? date.toISOString() : new Date().toISOString(),
@@ -79,7 +81,6 @@ export const logService = {
 
         if (error) throw error;
 
-        // Return as FoodItem
         return {
             id: data.id,
             name: data.name,
@@ -90,6 +91,7 @@ export const logService = {
             quantity: data.quantity,
             unit: data.unit,
             servingSize: data.servingSize,
+            servingWeight: data.servingWeight, // Added
             brand: data.brand,
             source: data.source,
             timestamp: parseTimestamp(data.date),
@@ -111,6 +113,7 @@ export const logService = {
                 quantity: updates.quantity,
                 unit: updates.unit,
                 servingSize: updates.servingSize,
+                servingWeight: updates.servingWeight,
                 brand: updates.brand,
             })
             .eq('id', logId)

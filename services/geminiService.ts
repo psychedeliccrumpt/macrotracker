@@ -1,87 +1,53 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { SearchResult, Macros } from "../types";
+import { SearchResult, Macros } from "./types";
 
-// Initialize Gemini Client
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-if (!apiKey) {
-  console.warn('Gemini API key not found. AI food search will not work.');
-}
-const ai = new GoogleGenAI({ apiKey: apiKey || 'dummy-key-for-dev' });
+const ai = new GoogleGenAI({ apiKey: apiKey || '' });
+
+const extractJson = (text: string): any => {
+  try {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    return JSON.parse(match[0]);
+  } catch (e) {
+    return null;
+  }
+};
 
 /**
- * Analyzes a food label image (US or Chinese).
- * Converts kJ to kcal if necessary.
- * Returns structured JSON.
+ * Image Label Analysis
  */
 export const analyzeFoodLabel = async (base64Image: string): Promise<SearchResult> => {
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: "image/jpeg",
-              data: base64Image,
-            },
-          },
-          {
-            text: `Analyze this food label. Extract the product name (if visible, otherwise "Unknown Food") and BRAND NAME (if visible). Extract nutritional information per serving or per 100g/ml (whichever is standard on the label).
-            
-            CRITICAL INSTRUCTIONS:
-            1. If energy is listed in Kilojoules (kJ) (common on Chinese labels), YOU MUST CONVERT IT TO KCAL (1 kcal = 4.184 kJ). Return only the kcal value.
-            2. Extract Protein, Fat, and Carbohydrates in grams.
-            3. Identify the serving size or reference amount (e.g., "100g", "1 package").
-            
-            5. CRITICAL: If the serving size is a COUNT of items (e.g., "11 crackers", "3 cookies"), YOU MUST:
-               - Set 'servingSize' to "1 unit" (e.g. "1 cracker").
-               - Calculate macros for ONE SINGLE UNIT (divide the serving totals by the count).
-               - If the label only gives per 100g, estimate the weight of a single unit.
-            6. If the serving size is NOT a count (e.g. "1 cup", "28g"), set 'servingSize' to that string (e.g. "28g").
-            
-            Return the data in this exact JSON schema.`,
-          },
-        ],
-      },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            name: { type: Type.STRING },
-            calories: { type: Type.NUMBER, description: "Energy in kcal for ONE SERVING UNIT (e.g. 1 cracker)" },
-            protein: { type: Type.NUMBER, description: "Protein in grams for ONE SERVING UNIT" },
-            fat: { type: Type.NUMBER, description: "Total Fat in grams for ONE SERVING UNIT" },
-            carbs: { type: Type.NUMBER, description: "Total Carbohydrates in grams for ONE SERVING UNIT" },
-            servingSize: { type: Type.STRING, description: "The base unit, e.g. '1 cracker' or '28g'" },
-            quantity: { type: Type.NUMBER, description: "The count of items in a standard serving, e.g. 11" },
-            unit: { type: Type.STRING, description: "The unit name, e.g. 'crackers', 'cookies', 'pieces'" },
-            servingWeight: { type: Type.NUMBER, description: "The total weight of the serving in grams, e.g. 30" },
-            brand: { type: Type.STRING, description: "The brand name if visible, e.g. 'Oreo', 'Lay's' or 'Generic'" }
-          },
-          required: ["name", "calories", "protein", "fat", "carbs", "servingSize"],
-        },
-      },
+      model: "gemini-2.0-flash",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { inlineData: { mimeType: "image/jpeg", data: base64Image } },
+            { text: "Analyze nutritional label. Return JSON with name, brand, calories, protein, fat, carbs, servingSize, quantity, unit, servingWeight. TOTAL serving, no division." }
+          ]
+        }
+      ],
+      config: { responseMimeType: "application/json" }
     });
 
-    if (response.text) {
-      const data = JSON.parse(response.text);
-      return {
-        name: data.name,
-        macros: {
-          calories: data.calories,
-          protein: data.protein,
-          fat: data.fat,
-          carbs: data.carbs,
-        },
-        servingSize: data.servingSize,
-        quantity: data.quantity || 1,
-        unit: data.unit || 'serving',
-        servingWeight: data.servingWeight,
-        brand: data.brand,
-      };
-    }
-    throw new Error("No data returned from model");
+    const data = JSON.parse(response.text || '{}');
+    return {
+      name: data.name,
+      macros: {
+        calories: Number(data.calories) || 0,
+        protein: Number(data.protein) || 0,
+        fat: Number(data.fat) || 0,
+        carbs: Number(data.carbs) || 0,
+      },
+      servingSize: data.servingSize,
+      brand: data.brand,
+      quantity: Number(data.quantity) || 1,
+      unit: data.unit || 'serving',
+      servingWeight: Number(data.servingWeight) || null,
+    };
   } catch (error) {
     console.error("Label analysis failed:", error);
     throw error;
@@ -89,145 +55,100 @@ export const analyzeFoodLabel = async (base64Image: string): Promise<SearchResul
 };
 
 /**
- * Searches for food nutrition using Google Search Grounding.
- * Parses the result to find estimated macros.
+ * Web Search Grounding
  */
 export const searchFoodNutrition = async (query: string): Promise<SearchResult> => {
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: `Search for the nutritional information for "${query}".
-      
-      CRITICAL INSTRUCTIONS:
-      1. PRIORITIZE RESULTS FROM USDA (FoodData Central) or official brand websites.
-      2. If multiple results exist, use the one that matches the USDA data format.
-      3. I need an estimate for Calories (kcal), Protein (g), Fat (g), and Carbs (g) for a standard serving.
-      
-      Output a JSON object inside a markdown code block (\`\`\`json ... \`\`\`) with the following structure:
-      {
-        "name": "Standardized Name of Food (e.g. 'Sweet Potato, cooked')",
-        "brand": "Brand Name or 'Generic'",
-        "calories": number,
-        "protein": number,
-        "fat": number,
-        "carbs": number,
-        "servingSize": "e.g. 1 medium banana (118g)"
-      }
-      
-      After the code block, list the source URLs you used.`,
+      model: "gemini-2.0-flash",
+      contents: [
+        {
+          role: "user",
+          parts: [{
+            text: `Search for nutrition: "${query}". 
+          
+          TASK:
+          1. Find calories, protein, fat, carbs for 1 standard serving.
+          2. Briefly state your source website.
+          3. Return JSON object at the end.
+          
+          CRITICAL:
+          - If there are calories, you MUST include the carbohydrates or fats.
+          - Total serving values only.
+          
+          JSON:
+          {
+            "name": "string",
+            "brand": "string",
+            "calories": number,
+            "protein": number,
+            "fat": number,
+            "carbs": number,
+            "servingSize": "string",
+            "quantity": number,
+            "unit": "string",
+            "servingWeight": number
+          }` }]
+        }
+      ],
       config: {
-        tools: [{ googleSearch: {} }],
-        // responseMimeType: "application/json" is NOT allowed with googleSearch
-      },
+        tools: [{ googleSearch: {} }] as any
+      }
     });
 
     const text = response.text || "";
+    const data = extractJson(text);
+    if (!data) throw new Error("Could not find nutrition data.");
 
-    // Extract Sources
     const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks
       ?.map((chunk: any) => chunk.web ? { title: chunk.web.title, uri: chunk.web.uri } : null)
       .filter((s: any) => s !== null) || [];
 
-    // Extract JSON block
-    const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/);
-
-    if (jsonMatch && jsonMatch[1]) {
-      const data = JSON.parse(jsonMatch[1]);
-      return {
-        name: data.name,
-        macros: {
-          calories: data.calories,
-          protein: data.protein,
-          fat: data.fat,
-          carbs: data.carbs,
-        },
-        servingSize: data.servingSize,
-        brand: data.brand,
-        sources: sources,
-      };
-    }
-
-    // Fallback if no code block found (simple parsing attempt or error)
-    throw new Error("Could not parse nutrition data from search results.");
-
+    return {
+      name: data.name || query,
+      macros: {
+        calories: Number(data.calories) || 0,
+        protein: Number(data.protein) || 0,
+        fat: Number(data.fat) || 0,
+        carbs: Number(data.carbs) || 0,
+      },
+      servingSize: data.servingSize || `${data.quantity || 1} ${data.unit || 'serving'}`,
+      brand: data.brand || 'Generic',
+      quantity: Number(data.quantity) || 1,
+      unit: data.unit || 'serving',
+      servingWeight: Number(data.servingWeight) || null,
+      sources: sources,
+    };
   } catch (error) {
-    console.error("Food search failed:", error);
+    console.error("AI Search failed:", error);
     throw error;
   }
 };
-/**
- * Analyzes a natural language description of a meal (e.g. "2 eggs and a coffee").
- * Returns an array of SearchResult objects.
- */
+
 export const analyzeNaturalLanguageMeal = async (text: string): Promise<SearchResult[]> => {
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: `I just ate: "${text}".
-      
-      CRITICAL INSTRUCTIONS:
-      1. Break down the input into individual food items.
-      2. For each item, prioritize USDA data or official brand information.
-      3. For each item, provide: Name, Calories (kcal), Protein (g), Fat (g), and Carbs (g).
-      4. Use a standard serving size for each item unless the user specified an amount (e.g. "2 eggs" vs "eggs").
-      5. CRITICAL: If the item is typically counted (e.g. "11 crackers", "5 shrimp"), break it down:
-         - Set 'quantity' to the count (e.g. 11).
-         - Set 'unit' to the item name (e.g. "crackers").
-         - Set macros for ONE SINGLE UNIT (divide total by quantity).
-         - Set 'servingSize' to "1 [unit]" (e.g. "1 cracker").
-         - Set 'servingWeight' to the total weight in grams if available (e.g. 30).
-      
-      Output a valid JSON array of objects inside a markdown code block (\`\`\`json ... \`\`\`) with this structure:
-      [
-        {
-          "name": "Standardized Name",
-          "calories": number,
-          "protein": number,
-          "fat": number,
-          "carbs": number,
-          "quantity": number (e.g. 10),
-          "unit": "string (e.g. pieces, shrimp, cups)",
-          "servingSize": "Descriptive serving of the BASE unit (e.g. 1 large shrimp)",
-          "servingWeight": number (e.g. 30),
-          "brand": "Brand or 'Generic'"
-        }
-      ]
-      
-      After the code block, list the source URLs you used for all items.`,
-      config: {
-        tools: [{ googleSearch: {} }],
-      },
+      model: "gemini-2.0-flash",
+      contents: [{ role: "user", parts: [{ text: `Meal breakdown: ${text}. Return JSON array.` }] }]
     });
 
-    const outputText = response.text || "";
-    const jsonMatch = outputText.match(/```json\n([\s\S]*?)\n```/);
+    const result = extractJson(response.text || '[]');
+    const items = Array.isArray(result) ? result : [result];
 
-    if (jsonMatch && jsonMatch[1]) {
-      const data = JSON.parse(jsonMatch[1]);
-
-      // Extract Sources for context
-      const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks
-        ?.map((chunk: any) => chunk.web ? { title: chunk.web.title, uri: chunk.web.uri } : null)
-        .filter((s: any) => s !== null) || [];
-
-      return data.map((item: any) => ({
-        name: item.name,
-        macros: {
-          calories: item.calories,
-          protein: item.protein,
-          fat: item.fat,
-          carbs: item.carbs,
-        },
-        quantity: item.quantity || 1,
-        unit: item.unit || 'serving',
-        servingWeight: item.servingWeight,
-        servingSize: item.servingSize,
-        brand: item.brand,
-        sources: sources,
-      }));
-    }
-
-    throw new Error("Could not parse meal data from AI response.");
+    return items.map((item: any) => ({
+      name: item.name,
+      macros: {
+        calories: Number(item.calories) || 0,
+        protein: Number(item.protein) || 0,
+        fat: Number(item.fat) || 0,
+        carbs: Number(item.carbs) || 0,
+      },
+      quantity: Number(item.quantity) || 1,
+      unit: item.unit || 'serving',
+      servingWeight: Number(item.servingWeight) || null,
+      servingSize: item.servingSize || `${item.quantity || 1} ${item.unit || 'serving'}`,
+      brand: item.brand || 'Generic',
+    }));
   } catch (error) {
     console.error("Meal analysis failed:", error);
     throw error;
