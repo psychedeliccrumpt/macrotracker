@@ -19,34 +19,32 @@ const extractJson = (text: string): any => {
  */
 export const analyzeFoodLabel = async (base64Image: string): Promise<SearchResult> => {
   try {
+    // Strip data URL prefix if present (e.g., data:image/jpeg;base64,...)
+    const cleanBase64 = base64Image.includes('base64,')
+      ? base64Image.split('base64,')[1]
+      : base64Image;
+
     const response = await ai.models.generateContent({
       model: "gemini-2.0-flash",
       contents: [
         {
           role: "user",
           parts: [
-            { inlineData: { mimeType: "image/jpeg", data: base64Image } },
+            { inlineData: { mimeType: "image/jpeg", data: cleanBase64 } },
             {
-              text: `Identify and analyze the "Nutrition Facts" label in this image.
+              text: `Identify the nutritional information from this food label. 
               
-              INSTRUCTIONS:
-              1. Extract the Product Name and Brand if visible.
-              2. Find the "Serving Size" (e.g., "16 crisps", "1 bar", "2/3 cup").
-              3. Find the calories and macros for ONE standard serving as listed on the label.
-              4. If the label shows "Per 100g" and "Per Serving", use the "Per Serving" values.
-              5. DO NOT divide or calculate. Return the numbers exactly as they appear for that serving size.
-              
-              JSON OUTPUT FIELDS:
-              - name: Product Name
-              - brand: Brand Name
-              - calories: Number (kcal)
-              - protein/fat/carbs: Numbers (grams)
-              - servingSize: Full string (e.g., "16 crisps (28g)")
-              - quantity: The count part of serving size (e.g., 16)
-              - unit: The item name part (e.g., "crisps", "bar", "serving")
-              - servingWeight: The gram weight part if listed (e.g., 28)
-              
-              Return ONLY a valid JSON object.`
+              Return a JSON object with exactly these fields:
+              - name: (string) name of the product
+              - brand: (string) brand of the product
+              - calories: (number) total calories per serving
+              - protein: (number) grams of protein per serving
+              - fat: (number) grams of total fat per serving
+              - carbs: (number) grams of total carbohydrates per serving
+              - servingSize: (string) the listed serving size (e.g. "1 cup", "28g", "15 chips")
+              - quantity: (number) the numeric quantity of the serving size
+              - unit: (string) the unit of the serving size
+              - servingWeight: (number) the weight in grams if listed`
             }
           ]
         }
@@ -56,7 +54,17 @@ export const analyzeFoodLabel = async (base64Image: string): Promise<SearchResul
       }
     });
 
-    const data = JSON.parse(response.text || '{}');
+    const responseText = response.text || "";
+    // Robust parsing: use extractJson fallback to handle markdown wrappers or metadata
+    const data = extractJson(responseText) || (responseText.includes('{') ? JSON.parse(responseText) : null);
+
+    if (!data) {
+      console.error("Gemini failed to return valid JSON. Raw response:", responseText);
+      throw new Error("Could not parse nutrition data from image.");
+    }
+
+    console.log("Scan Data Parsed:", data);
+
     return {
       name: data.name || "Unknown Product",
       macros: {
