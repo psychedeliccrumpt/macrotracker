@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { SearchResult, Macros } from "./types";
+import { SearchResult, Macros } from "../types";
 
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 const ai = new GoogleGenAI({ apiKey: apiKey || '' });
@@ -26,27 +26,51 @@ export const analyzeFoodLabel = async (base64Image: string): Promise<SearchResul
           role: "user",
           parts: [
             { inlineData: { mimeType: "image/jpeg", data: base64Image } },
-            { text: "Analyze nutritional label. Return JSON with name, brand, calories, protein, fat, carbs, servingSize, quantity, unit, servingWeight. TOTAL serving, no division." }
+            {
+              text: `Identify and analyze the "Nutrition Facts" label in this image.
+              
+              INSTRUCTIONS:
+              1. Extract the Product Name and Brand if visible.
+              2. Find the "Serving Size" (e.g., "16 crisps", "1 bar", "2/3 cup").
+              3. Find the calories and macros for ONE standard serving as listed on the label.
+              4. If the label shows "Per 100g" and "Per Serving", use the "Per Serving" values.
+              5. DO NOT divide or calculate. Return the numbers exactly as they appear for that serving size.
+              
+              JSON OUTPUT FIELDS:
+              - name: Product Name
+              - brand: Brand Name
+              - calories: Number (kcal)
+              - protein/fat/carbs: Numbers (grams)
+              - servingSize: Full string (e.g., "16 crisps (28g)")
+              - quantity: The count part of serving size (e.g., 16)
+              - unit: The item name part (e.g., "crisps", "bar", "serving")
+              - servingWeight: The gram weight part if listed (e.g., 28)
+              
+              Return ONLY a valid JSON object.`
+            }
           ]
         }
       ],
-      config: { responseMimeType: "application/json" }
+      config: {
+        responseMimeType: "application/json"
+      }
     });
 
     const data = JSON.parse(response.text || '{}');
     return {
-      name: data.name,
+      name: data.name || "Unknown Product",
       macros: {
         calories: Number(data.calories) || 0,
         protein: Number(data.protein) || 0,
         fat: Number(data.fat) || 0,
         carbs: Number(data.carbs) || 0,
       },
-      servingSize: data.servingSize,
-      brand: data.brand,
+      servingSize: data.servingSize || "1 serving",
+      brand: data.brand || "Generic",
       quantity: Number(data.quantity) || 1,
       unit: data.unit || 'serving',
       servingWeight: Number(data.servingWeight) || null,
+      source: 'scan'
     };
   } catch (error) {
     console.error("Label analysis failed:", error);
@@ -118,6 +142,7 @@ export const searchFoodNutrition = async (query: string): Promise<SearchResult> 
       unit: data.unit || 'serving',
       servingWeight: Number(data.servingWeight) || null,
       sources: sources,
+      source: 'search'
     };
   } catch (error) {
     console.error("AI Search failed:", error);

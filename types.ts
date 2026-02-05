@@ -62,6 +62,7 @@ export interface SearchResult {
   unit?: string;
   servingWeight?: number; // in grams
   brand?: string;
+  source?: string;
 }
 
 export interface UserProfile {

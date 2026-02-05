@@ -240,8 +240,8 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
                     Standard Serving: {baseInfo.servingSize}
                   </p>
 
-                  {/* DATA SOURCE LINKS moved here */}
-                  {(!isExistingItem && (initialData as any).source !== 'personal' && (initialData as any).source !== 'community') && (
+                  {/* DATA SOURCE LINKS - Only for AI Search, not for scans */}
+                  {(!isExistingItem && (initialData as SearchResult).source === 'search') && (
                     <div className="flex flex-wrap items-center gap-2 px-1">
                       <span className="text-[9px] font-black uppercase text-secondary/40 whitespace-nowrap">Source:</span>
                       <div className="flex flex-wrap gap-x-2 gap-y-1">
