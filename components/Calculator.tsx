@@ -274,7 +274,38 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }
   const handleDeleteHistory = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this history record?")) {
       try {
+        // Check if the item being deleted is the currently active one
+        const itemToDelete = history.find(h => h.id === id);
+        const isActive = itemToDelete?.status === 'active' || id === activeGoalLog?.id;
+
         await userService.deleteGoalLog(id);
+
+        if (isActive) {
+          // Clear Profile fields if we just deleted the active goal
+          const clearedProfile: Partial<UserProfile> = {
+            goalType: undefined,
+            goalWeight: undefined,
+            goalDate: undefined,
+            startWeight: undefined,
+            startDate: undefined,
+            updatedAt: new Date().toISOString()
+          };
+
+          try {
+            await onSaveProfile({ ...currentProfile, ...clearedProfile } as UserProfile);
+          } catch (e) {
+            console.warn("DB Clear failed during history delete, clearing local only.");
+          }
+
+          // Clear Local Storage & Local State
+          localStorage.removeItem(`goal_path_${currentProfile.id}`);
+          localStorage.removeItem(`offline_profile_${currentProfile.id}`);
+          setGoalType('maintain');
+          setGoalWeight('');
+          setTargetDate('');
+          setStep('objective');
+        }
+
         loadHistory();
       } catch (e) {
         console.error("Failed to delete history record", e);
