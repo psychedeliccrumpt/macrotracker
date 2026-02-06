@@ -18,7 +18,7 @@ model Profile {
   height    Float?
   age       Int?
   gender    String?   // male, female
-  activity  String?   // sedentary, light, moderate, active, very_active
+  activity  Float?    // multiplier
   dynamicTDEE Float?
   tdeeSource  String?   // formula, dynamic
   targets     Json?     // Saved macro targets
@@ -29,6 +29,7 @@ model Profile {
   startWeight Float?
   startDate   DateTime?
   goalType    String?   // lose, gain, maintain
+  tdeeAtGoalStart Float?
   
   updatedAt DateTime @updatedAt
   

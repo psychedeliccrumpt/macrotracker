@@ -16,7 +16,14 @@ interface MyPageProps {
 
 const MyPage: React.FC<MyPageProps> = ({ weightLogs, logs, onUpdateProfile }) => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<MyTab>('trends');
+  const [activeTab, setActiveTab] = useState<MyTab>(() => {
+    const saved = localStorage.getItem('my_page_tab');
+    if (saved === 'calculator' || saved === 'trends') {
+      localStorage.removeItem('my_page_tab');
+      return saved as MyTab;
+    }
+    return 'trends';
+  });
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -135,6 +142,7 @@ const MyPage: React.FC<MyPageProps> = ({ weightLogs, logs, onUpdateProfile }) =>
           <Calculator
             currentProfile={profile}
             onSaveProfile={handleSaveProfile}
+            onNavigateView={(v) => v === 'trends' && setActiveTab('trends')}
           />
         )}
       </div>

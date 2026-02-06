@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { FoodItem, Macros } from '../types';
-import { Trash2, Edit2, Clock, X } from 'lucide-react';
+import { Trash2, Edit2, Clock, X, Calculator, Activity } from 'lucide-react';
 import { getLocalDateString, formatLocalTime } from '../utils/dateUtils';
+import { UserProfile } from '../types';
 
 const MacroDetailModal: React.FC<{
   macro: 'protein' | 'carbs' | 'fat';
@@ -81,10 +82,29 @@ interface DashboardProps {
   onEditLog: (item: FoodItem) => void;
   selectedDate?: Date;
   onDateClick: () => void;
+  profile?: UserProfile | null;
+  onNavigateToGoals?: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ logs, targets, onDeleteLog, onEditLog, selectedDate, onDateClick }) => {
+const Dashboard: React.FC<DashboardProps> = ({ logs, targets, onDeleteLog, onEditLog, selectedDate, onDateClick, profile, onNavigateToGoals }) => {
   const [selectedMacro, setSelectedMacro] = useState<'protein' | 'carbs' | 'fat' | null>(null);
+  const [snoozedDrift, setSnoozedDrift] = React.useState<number | null>(() => {
+    if (!profile) return null;
+    const item = localStorage.getItem(`snooze_tdee_${profile.id}`);
+    return item ? Number(item) : null;
+  });
+
+  const tdeeDrift = profile?.dynamicTDEE && profile?.tdeeAtGoalStart
+    ? Math.round(profile.dynamicTDEE - profile.tdeeAtGoalStart)
+    : 0;
+
+  const showNotif = Math.abs(tdeeDrift) >= 50 && snoozedDrift !== tdeeDrift;
+
+  const handleSnooze = () => {
+    if (!profile) return;
+    setSnoozedDrift(tdeeDrift);
+    localStorage.setItem(`snooze_tdee_${profile.id}`, tdeeDrift.toString());
+  };
 
   // Filter logs for SELECTED DATE
   const activeDateStr = getLocalDateString(selectedDate || new Date());
@@ -143,6 +163,37 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, targets, onDeleteLog, onEdi
         className="flex-1 overflow-y-auto no-scrollbar pb-32"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
+        {/* Recalculation Notification */}
+        {showNotif && (
+          <div className="p-4 mx-6 mt-4 bg-primary text-secondary border-3 border-secondary shadow-neo relative overflow-hidden animate-in slide-in-from-top-4 duration-500">
+            <div className="absolute top-[-20px] right-[-20px] opacity-10 rotate-12">
+              <Activity size={100} />
+            </div>
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 mb-2">
+                <Calculator size={18} className="text-secondary" />
+                <h3 className="text-sm font-black uppercase tracking-widest">Smart Sync</h3>
+              </div>
+              <p className="text-[11px] font-bold uppercase leading-tight mb-4 opacity-80 max-w-[80%]">
+                Metabolism shifted by <span className="underline decoration-secondary">{Math.abs(tdeeDrift)} kcal</span>. Want to recalculate your goal?
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={onNavigateToGoals}
+                  className="bg-white border-2 border-secondary px-4 py-2 text-xs font-black uppercase shadow-neo-mini active:translate-y-[1px] active:shadow-none transition-all"
+                >
+                  Recalculate
+                </button>
+                <button
+                  onClick={handleSnooze}
+                  className="bg-primary/50 border-2 border-secondary/30 px-3 py-2 text-xs font-black uppercase text-secondary/60 hover:bg-white/10"
+                >
+                  Snooze
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Header / Chart Section */}
         <div className="p-6 bg-surface border-b-3 border-secondary shadow-neo mb-8 relative">

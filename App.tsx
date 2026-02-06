@@ -318,14 +318,19 @@ const AuthenticatedApp: React.FC = () => {
       default:
         return <Dashboard
           logs={logs}
+          profile={profile}
           targets={profile?.targets || {
             calories: 2200,
-            protein: 150,
-            carbs: 250,
-            fat: 70
+            protein: 165,
+            carbs: 275,
+            fat: 49
           }}
           onDeleteLog={deleteLog}
           onEditLog={(item) => setEditingItem(item)}
+          onNavigateToGoals={() => {
+            setView('my');
+            localStorage.setItem('my_page_tab', 'calculator');
+          }}
           selectedDate={selectedDate || new Date()}
           onDateClick={() => setView('calendar')}
         />;

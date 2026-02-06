@@ -6,11 +6,12 @@ import { userService } from '../services/userService';
 interface CalculatorProps {
   currentProfile: UserProfile;
   onSaveProfile: (profile: UserProfile) => void;
+  onNavigateView?: (view: string) => void;
 }
 
 type Step = 'objective' | 'stats' | 'tdee' | 'method' | 'timeline' | 'pace' | 'result';
 
-const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }) => {
+const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile, onNavigateView }) => {
   const [step, setStep] = useState<Step>('objective');
   const [planningMethod, setPlanningMethod] = useState<'timeline' | 'calorie'>('timeline');
   const [tdeeSource, setTdeeSource] = useState<'formula' | 'dynamic'>(currentProfile.tdeeSource || (currentProfile.dynamicTDEE ? 'dynamic' : 'formula'));
@@ -41,13 +42,22 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }
   const [targets, setTargets] = useState<Macros>(currentProfile.targets || {
     calories: 2000,
     protein: 150,
-    carbs: 200,
-    fat: 65
+    carbs: 250,
+    fat: 44
   });
 
   const [history, setHistory] = useState<GoalLog[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [snoozedDrift, setSnoozedDrift] = useState<number | null>(() => {
+    const savedSnooze = localStorage.getItem(`snooze_tdee_${currentProfile.id}`);
+    return savedSnooze ? Number(savedSnooze) : null;
+  });
+
+  const handleSnooze = (val: number) => {
+    setSnoozedDrift(val);
+    localStorage.setItem(`snooze_tdee_${currentProfile.id}`, val.toString());
+  };
 
   useEffect(() => {
     loadHistory();
@@ -156,10 +166,10 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }
       recommendedCals = tdee + 300;
     }
 
-    // Default macro split
+    // Default macro split: 30% Protein, 50% Carbs, 20% Fat
     const p = Math.round((recommendedCals * 0.3) / 4);
-    const f = Math.round((recommendedCals * 0.3) / 9);
-    const c = Math.round((recommendedCals * 0.4) / 4);
+    const c = Math.round((recommendedCals * 0.5) / 4);
+    const f = Math.round((recommendedCals * 0.2) / 9);
 
     setTargets({
       calories: recommendedCals,
@@ -170,11 +180,10 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }
     setStep('result');
   };
 
-  const isGoalActive = !!currentProfile.goalType ||
-    (localStorage.getItem(`goal_path_${currentProfile.id}`) !== null) ||
-    history.some(g => g.status === 'active');
-
   const activeGoalLog = history.find(g => g.status === 'active');
+  const isGoalActive = (!!currentProfile.goalType && currentProfile.goalType !== 'maintain') ||
+    (localStorage.getItem(`goal_path_${currentProfile.id}`) !== null && JSON.parse(localStorage.getItem(`goal_path_${currentProfile.id}`) || '{}').goalType !== 'maintain') ||
+    !!activeGoalLog;
   const displayGoal = {
     type: currentProfile.goalType || activeGoalLog?.type || goalType,
     weight: currentProfile.goalWeight || activeGoalLog?.goalWeight || parseFloat(goalWeight) || 0,
@@ -185,7 +194,7 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }
     ? Math.round(currentProfile.dynamicTDEE - currentProfile.tdeeAtGoalStart)
     : 0;
 
-  const showAdjustment = Math.abs(tdeeDrift) >= 50 && isGoalActive;
+  const showAdjustment = Math.abs(tdeeDrift) >= 50 && isGoalActive && snoozedDrift !== tdeeDrift;
 
   const handleApplySmartTDEE = async () => {
     if (!currentProfile.dynamicTDEE || !window.confirm(`Your Smart TDEE has ${tdeeDrift > 0 ? 'increased' : 'decreased'} by ${Math.abs(tdeeDrift)} kcal. Would you like to adjust your daily targets accordingly?`)) return;
@@ -269,6 +278,9 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }
     setTargetDate('');
     setStep('objective');
     loadHistory();
+    if (status === 'completed' || status === 'abandoned') {
+      onNavigateView?.('trends');
+    }
   };
 
   const handleDeleteHistory = async (id: string) => {
@@ -323,11 +335,14 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }
     };
 
     // 2. New Goal Fields (May not exist in DB yet)
+    const isNewGoal = !currentProfile.goalType || currentProfile.goalType === 'maintain';
     const goalMetadata = {
       goalType,
       goalWeight: goalType !== 'maintain' ? parseFloat(goalWeight) : undefined,
       goalDate: goalType !== 'maintain' ? new Date(targetDate).toISOString() : undefined,
-      tdeeAtGoalStart: calculateTDEE(formData.weight)
+      startWeight: isNewGoal ? formData.weight : (currentProfile.startWeight || formData.weight),
+      startDate: isNewGoal ? new Date().toISOString() : (currentProfile.startDate || new Date().toISOString()),
+      tdeeAtGoalStart: isNewGoal ? calculateTDEE(formData.weight) : (currentProfile.tdeeAtGoalStart || calculateTDEE(formData.weight))
     };
 
     try {
@@ -352,16 +367,22 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }
 
     // 3. Try to log history (non-critical)
     try {
-      await userService.createGoalLog(currentProfile.id, {
+      const logData = {
         type: goalType,
-        startWeight: formData.weight,
+        startWeight: currentProfile.startWeight || formData.weight,
         goalWeight: goalType !== 'maintain' ? parseFloat(goalWeight) : formData.weight,
         targetDate: goalType !== 'maintain' ? new Date(targetDate).toISOString() : new Date().toISOString(),
         status: 'active'
-      });
+      };
+
+      if (activeGoalLog) {
+        await userService.updateGoalLog(activeGoalLog.id, logData);
+      } else {
+        await userService.createGoalLog(currentProfile.id, logData);
+      }
       loadHistory();
     } catch (e) {
-      console.warn("Could not save to history table (Schema not updated).");
+      console.warn("Could not save to history table:", e);
     }
 
     setSaved(true);
@@ -417,12 +438,20 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }
                     Update your targets to stay on track?
                   </p>
                 </div>
-                <button
-                  onClick={handleApplySmartTDEE}
-                  className="bg-white border-2 border-secondary px-4 py-2 text-xs font-black uppercase shadow-neo-sm active:translate-y-[2px] active:shadow-none transition-all"
-                >
-                  Sync Now
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleSnooze(tdeeDrift)}
+                    className="bg-white/20 border-2 border-secondary/20 px-3 py-2 text-xs font-black uppercase hover:bg-white/40 transition-all text-secondary/60"
+                  >
+                    Snooze
+                  </button>
+                  <button
+                    onClick={handleApplySmartTDEE}
+                    className="bg-white border-2 border-secondary px-4 py-2 text-xs font-black uppercase shadow-neo-sm active:translate-y-[2px] active:shadow-none transition-all"
+                  >
+                    Sync Now
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -845,12 +874,15 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile }
                 <div key={log.id} className="p-3 border-2 border-secondary/20 bg-white flex justify-between items-center group hover:border-secondary transition-colors">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 border border-secondary ${log.type === 'lose' ? 'bg-primary text-white' : log.type === 'gain' ? 'bg-accent' : 'bg-highlight'}`}>
+                      <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 border border-secondary ${log.status === 'active' ? 'bg-secondary text-white' : log.type === 'lose' ? 'bg-primary text-white' : log.type === 'gain' ? 'bg-accent' : 'bg-highlight'}`}>
                         {log.type}
                       </span>
-                      <span className="text-xs font-bold text-secondary">{new Date(log.createdAt).toLocaleDateString()}</span>
+                      <span className="text-[10px] font-bold text-secondary/40 uppercase tracking-widest">
+                        {log.status === 'active' ? 'Target: ' : 'Started: '}
+                        {new Date(log.targetDate || log.createdAt).toLocaleDateString()}
+                      </span>
                     </div>
-                    <p className="text-xs font-black text-secondary/60 mt-1 uppercase">
+                    <p className="text-xs font-black text-secondary mt-1 uppercase">
                       {log.startWeight}kg → {log.goalWeight}kg
                     </p>
                   </div>

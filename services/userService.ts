@@ -147,5 +147,23 @@ export const userService = {
             throw error;
         }
         return true;
+    },
+
+    /**
+     * Update an existing goal log entry
+     */
+    async updateGoalLog(id: string, updates: any) {
+        const { data, error } = await supabase
+            .from('GoalLog')
+            .update(updates)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error updating goal log:', error);
+            throw error;
+        }
+        return data;
     }
 };
