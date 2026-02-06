@@ -70,10 +70,10 @@ const WeightTrend: React.FC<WeightTrendProps> = ({ weightLogs, foodLogs, current
   const twoWeeksAgo = todayStart - (14 * 1000 * 60 * 60 * 24);
   const oneWeekAgo = todayStart - (7 * 1000 * 60 * 60 * 24);
 
-  // Filter for completed days in the last 14 days
+  // Filter for completed days in the last 14 days + today's weight if available
   const validWindowData = chartData.filter(d =>
     d.timestamp >= twoWeeksAgo &&
-    d.timestamp < todayStart
+    d.timestamp <= todayStart
   );
 
   const dataWithWeight = validWindowData.filter(d => d.weight !== undefined);
@@ -90,8 +90,8 @@ const WeightTrend: React.FC<WeightTrendProps> = ({ weightLogs, foodLogs, current
     if (days >= 3) {
       const totalWeightChange = endEntry.weight! - startEntry.weight!;
 
-      // Calculate average calories based ONLY on days that actually have calorie data
-      const daysWithCalories = validWindowData.filter(d => d.calories > 0);
+      // Calculate average calories based ONLY on days BEFORE today that actually have calorie data
+      const daysWithCalories = validWindowData.filter(d => d.timestamp < todayStart && d.calories > 0);
       const avgCaloriesInWindow = daysWithCalories.length > 0
         ? daysWithCalories.reduce((acc, curr) => acc + curr.calories, 0) / daysWithCalories.length
         : 0;
