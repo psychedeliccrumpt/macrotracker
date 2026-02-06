@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react'; // v1.1.0 build trigger
 import { Calendar as CalendarIcon, LayoutGrid, CircleUser, NotebookPen } from 'lucide-react';
 import { AppView, FoodItem, Recipe, SearchResult, Macros, UserProfile, WeightLog, DayNote } from './types';
 import Scanner from './components/Scanner';
