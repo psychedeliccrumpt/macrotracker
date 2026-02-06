@@ -32,12 +32,17 @@ export const analyzeFoodLabel = async (base64Image: string): Promise<SearchResul
           parts: [
             { inlineData: { mimeType: "image/jpeg", data: cleanBase64 } },
             {
-              text: `Identify the nutritional information from this food label. 
+              text: `Identify and analyze the nutrition label in this image. 
               
+              INSTRUCTIONS:
+              1. This might be a Chinese nutrition label (营养成分表). Translate relevant terms to English.
+              2. If the energy is listed in kJ (千焦), you MUST convert it to kcal (1 kcal = 4.184 kJ).
+              3. Macros (Protein, Fat, Carbs) are usually listed per 100g or per serving. Return the values per serving.
+               
               Return a JSON object with exactly these fields:
               - name: (string) name of the product
               - brand: (string) brand of the product
-              - calories: (number) total calories per serving
+              - calories: (number) total calories (kcal) per serving
               - protein: (number) grams of protein per serving
               - fat: (number) grams of total fat per serving
               - carbs: (number) grams of total carbohydrates per serving
