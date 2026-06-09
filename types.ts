@@ -77,12 +77,12 @@ export interface UserProfile {
   tdeeSource?: 'formula' | 'dynamic';
   tdeeAtGoalStart?: number;
 
-  // Goal Tracking
-  goalWeight?: number;
-  goalDate?: string | Date;
-  startWeight?: number;
-  startDate?: string | Date;
-  goalType?: 'lose' | 'gain' | 'maintain';
+  // Goal Tracking — nullable so Supabase upsert can explicitly clear columns
+  goalWeight?: number | null;
+  goalDate?: string | Date | null;
+  startWeight?: number | null;
+  startDate?: string | Date | null;
+  goalType?: 'lose' | 'gain' | 'maintain' | null;
 
   targets?: Macros;
   updatedAt?: string;

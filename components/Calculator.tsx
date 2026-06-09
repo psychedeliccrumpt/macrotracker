@@ -254,11 +254,11 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile, 
 
     // 2. Clear Profile fields
     const clearedProfile: Partial<UserProfile> = {
-      goalType: undefined,
-      goalWeight: undefined,
-      goalDate: undefined,
-      startWeight: undefined,
-      startDate: undefined,
+      goalType: null,
+      goalWeight: null,
+      goalDate: null,
+      startWeight: null,
+      startDate: null,
       updatedAt: new Date().toISOString()
     };
 
@@ -295,11 +295,11 @@ const Calculator: React.FC<CalculatorProps> = ({ currentProfile, onSaveProfile, 
         if (isActive) {
           // Clear Profile fields if we just deleted the active goal
           const clearedProfile: Partial<UserProfile> = {
-            goalType: undefined,
-            goalWeight: undefined,
-            goalDate: undefined,
-            startWeight: undefined,
-            startDate: undefined,
+            goalType: null,
+            goalWeight: null,
+            goalDate: null,
+            startWeight: null,
+            startDate: null,
             updatedAt: new Date().toISOString()
           };
 

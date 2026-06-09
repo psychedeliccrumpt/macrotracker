@@ -205,12 +205,16 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
     } as any);
   };
 
-  const getFontSizeClass = (val: number) => {
-    const len = Math.round(val).toString().length;
-    if (len >= 6) return 'text-[clamp(0.7rem,3vw,0.9rem)]';
-    if (len >= 5) return 'text-[clamp(0.8rem,4vw,1.1rem)]';
-    if (len >= 4) return 'text-[clamp(0.9rem,5vw,1.25rem)]';
-    return 'text-[clamp(1rem,6vw,1.5rem)]';
+  const getFontSizeClass = (val: number, suffix = '') => {
+    // Measure the actual rendered string, not the rounded integer
+    const displayStr = val.toString() + suffix;
+    const len = displayStr.length;
+    if (len >= 7) return 'text-[clamp(0.5rem,1.8vw,0.65rem)]';
+    if (len >= 6) return 'text-[clamp(0.55rem,2.2vw,0.75rem)]';
+    if (len >= 5) return 'text-[clamp(0.65rem,2.8vw,0.9rem)]';
+    if (len >= 4) return 'text-[clamp(0.8rem,3.5vw,1.1rem)]';
+    if (len >= 3) return 'text-[clamp(1rem,4.5vw,1.3rem)]';
+    return 'text-[clamp(1.1rem,5.5vw,1.5rem)]';
   };
 
   return (
@@ -281,20 +285,20 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
           </div>
 
           <div className="grid grid-cols-4 gap-2 mb-8">
-            <div className="text-center p-1 sm:p-2 border-3 border-secondary bg-white shadow-neo-sm flex flex-col justify-center min-h-[70px] sm:min-h-[80px]">
+            <div className="text-center p-1 sm:p-2 border-3 border-secondary bg-white shadow-neo-sm flex flex-col justify-center min-h-[70px] sm:min-h-[80px] overflow-hidden">
               <span className={`block font-black text-secondary font-mono leading-none ${getFontSizeClass(currentMacros.calories)}`}>{currentMacros.calories}</span>
               <span className="text-[8px] sm:text-[10px] font-black uppercase bg-secondary text-white px-2 mt-1 self-center">kcal</span>
             </div>
-            <div className="text-center p-1 sm:p-2 border-3 border-secondary bg-primary flex flex-col justify-center min-h-[70px] sm:min-h-[80px]">
-              <span className={`block font-black text-white font-mono leading-none ${getFontSizeClass(currentMacros.protein)}`}>{currentMacros.protein}g</span>
+            <div className="text-center p-1 sm:p-2 border-3 border-secondary bg-primary flex flex-col justify-center min-h-[70px] sm:min-h-[80px] overflow-hidden">
+              <span className={`block font-black text-white font-mono leading-none ${getFontSizeClass(currentMacros.protein, 'g')}`}>{currentMacros.protein}g</span>
               <span className="text-[8px] sm:text-[10px] font-black uppercase text-white/90 mt-1">Prot</span>
             </div>
-            <div className="text-center p-1 sm:p-2 border-3 border-secondary bg-accent flex flex-col justify-center min-h-[70px] sm:min-h-[80px]">
-              <span className={`block font-black text-secondary font-mono leading-none ${getFontSizeClass(currentMacros.carbs)}`}>{currentMacros.carbs}g</span>
+            <div className="text-center p-1 sm:p-2 border-3 border-secondary bg-accent flex flex-col justify-center min-h-[70px] sm:min-h-[80px] overflow-hidden">
+              <span className={`block font-black text-secondary font-mono leading-none ${getFontSizeClass(currentMacros.carbs, 'g')}`}>{currentMacros.carbs}g</span>
               <span className="text-[8px] sm:text-[10px] font-black uppercase text-secondary/80 mt-1">Carb</span>
             </div>
-            <div className="text-center p-1 sm:p-2 border-3 border-secondary bg-highlight flex flex-col justify-center min-h-[70px] sm:min-h-[80px]">
-              <span className={`block font-black text-secondary font-mono leading-none ${getFontSizeClass(currentMacros.fat)}`}>{currentMacros.fat}g</span>
+            <div className="text-center p-1 sm:p-2 border-3 border-secondary bg-highlight flex flex-col justify-center min-h-[70px] sm:min-h-[80px] overflow-hidden">
+              <span className={`block font-black text-secondary font-mono leading-none ${getFontSizeClass(currentMacros.fat, 'g')}`}>{currentMacros.fat}g</span>
               <span className="text-[8px] sm:text-[10px] font-black uppercase text-secondary/80 mt-1">Fat</span>
             </div>
           </div>
