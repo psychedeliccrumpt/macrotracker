@@ -12,27 +12,34 @@ interface AILoggerProps {
     onLogItems: (items: SearchResult[]) => void;
 }
 
+const NUM_BARS = 9;
+
 const AILogger: React.FC<AILoggerProps> = ({ onBack, onLogItems }) => {
     const { user } = useAuth();
 
-    // --- Voice state ---
+    // --- Voice ---
     const [text, setText] = useState('');
     const [isListening, setIsListening] = useState(false);
     const [isTranscribing, setIsTranscribing] = useState(false);
+    const [barHeights, setBarHeights] = useState<number[]>(Array(NUM_BARS).fill(4));
+
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);
     const streamRef = useRef<MediaStream | null>(null);
+    const analyserRef = useRef<AnalyserNode | null>(null);
+    const audioCtxRef = useRef<AudioContext | null>(null);
+    const animFrameRef = useRef<number | null>(null);
 
-    // --- Parse state ---
+    // --- Parse ---
     const [loading, setLoading] = useState(false);
     const [results, setResults] = useState<any[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
-    // --- Confirmation state ---
+    // --- Confirmation ---
     const [confirmedItems, setConfirmedItems] = useState<Set<number>>(new Set());
 
-    // --- Replace / search overlay state ---
+    // --- Replace search overlay ---
     const [replacingIndex, setReplacingIndex] = useState<number | null>(null);
     const [replaceQuery, setReplaceQuery] = useState('');
     const [replaceResults, setReplaceResults] = useState<SearchResult[]>([]);
@@ -43,21 +50,64 @@ const AILogger: React.FC<AILoggerProps> = ({ onBack, onLogItems }) => {
         return () => {
             mediaRecorderRef.current?.stop();
             streamRef.current?.getTracks().forEach(t => t.stop());
+            stopWaveform();
         };
     }, []);
 
-    // Reset confirmation state when results change
-    useEffect(() => {
-        setConfirmedItems(new Set());
-    }, [results.length]);
+    useEffect(() => { setConfirmedItems(new Set()); }, [results.length]);
 
-    // ─── Voice ───────────────────────────────────────────────
+    // ─── Waveform visualizer ──────────────────────────────────
+    const startWaveform = (stream: MediaStream) => {
+        try {
+            const audioCtx = new AudioContext();
+            audioCtxRef.current = audioCtx;
+            const analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 64;
+            analyser.smoothingTimeConstant = 0.75;
+            audioCtx.createMediaStreamSource(stream).connect(analyser);
+            analyserRef.current = analyser;
+
+            const data = new Uint8Array(analyser.frequencyBinCount);
+            const step = Math.floor(data.length / NUM_BARS);
+
+            const tick = () => {
+                analyser.getByteFrequencyData(data);
+                const heights = Array.from({ length: NUM_BARS }, (_, i) => {
+                    const raw = data[i * step] / 255;
+                    // Bias center bars taller for classic waveform shape
+                    const center = (NUM_BARS - 1) / 2;
+                    const bias = 1 - (Math.abs(i - center) / center) * 0.25;
+                    return Math.max(4, Math.round(raw * 46 * bias));
+                });
+                setBarHeights(heights);
+                animFrameRef.current = requestAnimationFrame(tick);
+            };
+            tick();
+        } catch (_) { /* AudioContext not available */ }
+    };
+
+    const stopWaveform = () => {
+        if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+        audioCtxRef.current?.close().catch(() => {});
+        audioCtxRef.current = null;
+        analyserRef.current = null;
+        setBarHeights(Array(NUM_BARS).fill(4));
+    };
+
+    // ─── Voice recording ─────────────────────────────────────
     const toggleListening = async () => {
-        if (isListening) { mediaRecorderRef.current?.stop(); return; }
+        if (isListening) {
+            mediaRecorderRef.current?.stop();
+            stopWaveform();
+            return;
+        }
         setError(null);
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             streamRef.current = stream;
+
+            // 1. MediaRecorder → Whisper (accurate multilingual final transcript)
             const mediaRecorder = new MediaRecorder(stream);
             mediaRecorderRef.current = mediaRecorder;
             chunksRef.current = [];
@@ -71,12 +121,16 @@ const AILogger: React.FC<AILoggerProps> = ({ onBack, onLogItems }) => {
                     const transcript = await transcribeAudio(audioBlob);
                     setText(prev => (prev ? `${prev} ${transcript}` : transcript).trim());
                 } catch (err: any) {
-                    setError(err.message || 'Transcription failed.');
+                    setError(err.message || 'Transcription failed. Check your OpenAI API key.');
                 } finally { setIsTranscribing(false); }
             };
             mediaRecorder.start();
+
+            // 2. Web Audio API → real-time waveform bars
+            startWaveform(stream);
+
             setIsListening(true);
-        } catch { setError('Could not access microphone. Check permissions.'); }
+        } catch { setError('Could not access microphone. Check browser permissions.'); }
     };
 
     // ─── Parse ────────────────────────────────────────────────
@@ -102,12 +156,9 @@ const AILogger: React.FC<AILoggerProps> = ({ onBack, onLogItems }) => {
     const removeResult = (index: number) => setResults(results.filter((_, i) => i !== index));
     const handleLogAll = () => { if (results.length > 0) onLogItems(results); };
 
-    // ─── Confirmation ────────────────────────────────────────
-    const handleConfirm = (index: number) => {
-        setConfirmedItems(prev => new Set([...prev, index]));
-    };
+    // ─── Confirm / Replace ───────────────────────────────────
+    const handleConfirm = (index: number) => setConfirmedItems(prev => new Set([...prev, index]));
 
-    // ─── Replace search ──────────────────────────────────────
     const handleStartReplace = (e: React.MouseEvent, index: number, itemName: string) => {
         e.stopPropagation();
         setReplacingIndex(index);
@@ -140,8 +191,10 @@ const AILogger: React.FC<AILoggerProps> = ({ onBack, onLogItems }) => {
 
     return (
         <div className="flex flex-col h-full bg-background relative overflow-hidden">
-            {/* ─── Main scrollable content ─── */}
+
+            {/* ─── Main content ─── */}
             <div className="flex-1 overflow-y-auto p-4 pb-24">
+
                 {/* Header */}
                 <div className="flex items-center mb-8">
                     <button onClick={onBack} className="mr-4 p-2 border-3 border-secondary bg-white hover:bg-secondary hover:text-white transition-colors shadow-neo-sm">
@@ -150,8 +203,8 @@ const AILogger: React.FC<AILoggerProps> = ({ onBack, onLogItems }) => {
                     <h1 className="text-2xl font-black uppercase text-secondary tracking-tight">AI Quick Log</h1>
                 </div>
 
-                {/* Input */}
-                <div className="space-y-4 mb-8">
+                {/* Input area */}
+                <div className="space-y-3 mb-8">
                     <div className="relative group">
                         <textarea
                             value={text}
@@ -162,15 +215,34 @@ const AILogger: React.FC<AILoggerProps> = ({ onBack, onLogItems }) => {
                         <button
                             onClick={toggleListening}
                             disabled={isTranscribing}
-                            className={`absolute right-4 bottom-4 w-12 h-12 rounded-full border-3 border-secondary flex items-center justify-center transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : isTranscribing ? 'bg-yellow-400 text-secondary cursor-wait' : 'bg-white text-secondary hover:bg-highlight'}`}
+                            className={`absolute right-4 bottom-4 w-12 h-12 rounded-full border-3 border-secondary flex items-center justify-center transition-all
+                                ${isListening ? 'bg-red-500 text-white' : isTranscribing ? 'bg-yellow-400 text-secondary cursor-wait' : 'bg-white text-secondary hover:bg-highlight'}`}
                         >
-                            {isTranscribing ? <Loader2 size={22} className="animate-spin" /> : isListening ? <MicOff size={24} /> : <Mic size={24} />}
+                            {isTranscribing ? <Loader2 size={22} className="animate-spin" /> : isListening ? <MicOff size={22} /> : <Mic size={22} />}
                         </button>
                     </div>
 
+                    {/* ── Waveform visualizer (real mic levels via Web Audio API) ── */}
+                    {isListening && (
+                        <div className="flex items-center justify-center gap-[5px] h-16 px-6 bg-red-50 border-2 border-red-200">
+                            {barHeights.map((h, i) => (
+                                <div
+                                    key={i}
+                                    className="w-[5px] rounded-full bg-red-500"
+                                    style={{
+                                        height: `${h}px`,
+                                        opacity: 0.5 + (h / 48) * 0.5,
+                                        transition: 'height 55ms ease-out, opacity 55ms ease-out',
+                                    }}
+                                />
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Status label */}
                     {(isListening || isTranscribing) && (
-                        <p className={`text-xs font-bold uppercase tracking-widest text-center ${isListening ? 'text-red-500' : 'text-yellow-600'}`}>
-                            {isListening ? '● Recording — tap mic to stop' : '⏳ Transcribing with Whisper…'}
+                        <p className={`text-[10px] font-black uppercase tracking-widest text-center ${isListening ? 'text-red-500' : 'text-yellow-600'}`}>
+                            {isListening ? '● Recording — tap mic to stop' : '⏳ Refining with Whisper…'}
                         </p>
                     )}
 
@@ -217,7 +289,6 @@ const AILogger: React.FC<AILoggerProps> = ({ onBack, onLogItems }) => {
                                     onClick={() => setEditingIndex(index)}
                                     className="bg-white border-3 border-secondary shadow-neo-sm p-4 relative group cursor-pointer hover:bg-highlight/20 transition-colors"
                                 >
-                                    {/* Delete button */}
                                     <button
                                         onClick={(e) => { e.stopPropagation(); removeResult(index); }}
                                         className="absolute -top-3 -right-3 w-8 h-8 bg-white border-2 border-secondary rounded-full flex items-center justify-center text-secondary hover:bg-red-100 hover:text-red-500 transition-colors shadow-sm opacity-0 group-hover:opacity-100 z-10"
@@ -225,7 +296,6 @@ const AILogger: React.FC<AILoggerProps> = ({ onBack, onLogItems }) => {
                                         <Trash2 size={16} />
                                     </button>
 
-                                    {/* Item header */}
                                     <div className="flex justify-between items-start mb-2">
                                         <h3 className="font-black text-secondary uppercase leading-tight">{item.name}</h3>
                                         <div className="text-right">
@@ -234,27 +304,21 @@ const AILogger: React.FC<AILoggerProps> = ({ onBack, onLogItems }) => {
                                         </div>
                                     </div>
 
-                                    {/* Macro boxes */}
                                     <div className="flex gap-4">
-                                        <div className="text-center bg-gray-50 border-2 border-secondary/10 px-2 py-1 flex-1">
-                                            <p className="text-[10px] uppercase font-bold text-gray-400">kcal</p>
-                                            <p className="font-black text-secondary">{Math.round(item.macros?.calories || item.calories)}</p>
-                                        </div>
-                                        <div className="text-center bg-primary/10 border-2 border-primary/20 px-2 py-1 flex-1">
-                                            <p className="text-[10px] uppercase font-bold text-primary">p</p>
-                                            <p className="font-black text-secondary">{Math.round(item.macros?.protein || item.protein)}g</p>
-                                        </div>
-                                        <div className="text-center bg-accent/10 border-2 border-accent/20 px-2 py-1 flex-1">
-                                            <p className="text-[10px] uppercase font-bold text-accent">c</p>
-                                            <p className="font-black text-secondary">{Math.round(item.macros?.carbs || item.carbs)}g</p>
-                                        </div>
-                                        <div className="text-center bg-highlight/10 border-2 border-highlight/20 px-2 py-1 flex-1">
-                                            <p className="text-[10px] uppercase font-bold text-highlight">f</p>
-                                            <p className="font-black text-secondary">{Math.round(item.macros?.fat || item.fat)}g</p>
-                                        </div>
+                                        {[
+                                            { label: 'kcal', val: Math.round(item.macros?.calories || item.calories), cls: 'bg-gray-50 border-secondary/10 text-gray-400' },
+                                            { label: 'p', val: `${Math.round(item.macros?.protein || item.protein)}g`, cls: 'bg-primary/10 border-primary/20 text-primary' },
+                                            { label: 'c', val: `${Math.round(item.macros?.carbs || item.carbs)}g`, cls: 'bg-accent/10 border-accent/20 text-accent' },
+                                            { label: 'f', val: `${Math.round(item.macros?.fat || item.fat)}g`, cls: 'bg-highlight/10 border-highlight/20 text-highlight' },
+                                        ].map(({ label, val, cls }) => (
+                                            <div key={label} className={`text-center border-2 px-2 py-1 flex-1 ${cls}`}>
+                                                <p className="text-[10px] uppercase font-bold">{label}</p>
+                                                <p className="font-black text-secondary">{val}</p>
+                                            </div>
+                                        ))}
                                     </div>
 
-                                    {/* ── Confirm / Replace row ── */}
+                                    {/* Confirm / Replace */}
                                     {confirmedItems.has(index) ? (
                                         <div className="mt-3 pt-2 border-t-2 border-green-200 flex items-center gap-1.5">
                                             <CheckCircle2 size={13} className="text-green-500" />
@@ -289,7 +353,6 @@ const AILogger: React.FC<AILoggerProps> = ({ onBack, onLogItems }) => {
                     </div>
                 )}
 
-                {/* Empty state */}
                 {!loading && results.length === 0 && !error && (
                     <div className="flex flex-col items-center justify-center py-12 opacity-30 text-center">
                         <Sparkles size={64} className="mb-4" strokeWidth={1.5} />
@@ -302,23 +365,16 @@ const AILogger: React.FC<AILoggerProps> = ({ onBack, onLogItems }) => {
             {/* ─── Replace Search Overlay ─── */}
             {replacingIndex !== null && (
                 <div className="absolute inset-0 bg-background z-30 flex flex-col animate-in slide-in-from-bottom-5 duration-200">
-                    {/* Overlay header */}
                     <div className="flex items-center p-4 border-b-3 border-secondary bg-surface">
-                        <button
-                            onClick={() => setReplacingIndex(null)}
-                            className="mr-3 p-2 border-3 border-secondary bg-white hover:bg-secondary hover:text-white transition-colors shadow-neo-sm"
-                        >
+                        <button onClick={() => setReplacingIndex(null)} className="mr-3 p-2 border-3 border-secondary bg-white hover:bg-secondary hover:text-white transition-colors shadow-neo-sm">
                             <X size={20} strokeWidth={3} />
                         </button>
                         <div>
                             <h2 className="text-base font-black uppercase text-secondary leading-none">Replace Item</h2>
-                            <p className="text-[10px] text-secondary/50 font-bold uppercase mt-0.5 truncate max-w-[220px]">
-                                Currently: {results[replacingIndex]?.name}
-                            </p>
+                            <p className="text-[10px] text-secondary/50 font-bold uppercase mt-0.5 truncate max-w-[220px]">Currently: {results[replacingIndex]?.name}</p>
                         </div>
                     </div>
 
-                    {/* Search bar */}
                     <form onSubmit={handleReplaceSearch} className="relative p-4 border-b-2 border-secondary/10">
                         <input
                             type="text"
@@ -329,17 +385,12 @@ const AILogger: React.FC<AILoggerProps> = ({ onBack, onLogItems }) => {
                             className="w-full pl-10 pr-14 py-3 border-3 border-secondary bg-white font-bold placeholder:text-gray-300 focus:bg-highlight outline-none shadow-neo text-sm"
                         />
                         <SearchIcon className="absolute left-7 top-1/2 -translate-y-1/2 text-secondary" size={17} />
-                        <button
-                            type="submit"
-                            disabled={isReplaceSearching || !replaceQuery.trim()}
-                            className="absolute right-7 top-7 bottom-7 bg-secondary text-white px-3 font-bold disabled:opacity-50 hover:bg-primary transition-colors flex items-center"
-                        >
+                        <button type="submit" disabled={isReplaceSearching || !replaceQuery.trim()} className="absolute right-7 top-7 bottom-7 bg-secondary text-white px-3 font-bold disabled:opacity-50 hover:bg-primary transition-colors flex items-center">
                             {isReplaceSearching ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
                         </button>
                         <p className="text-[9px] text-secondary/40 font-bold uppercase mt-1 pl-1">Searches your database & web</p>
                     </form>
 
-                    {/* Results */}
                     <div className="flex-1 overflow-y-auto p-4 space-y-3">
                         {isReplaceSearching && (
                             <div className="text-center py-10 opacity-50">
@@ -347,32 +398,23 @@ const AILogger: React.FC<AILoggerProps> = ({ onBack, onLogItems }) => {
                                 <p className="text-xs font-black uppercase tracking-widest">Searching…</p>
                             </div>
                         )}
-
-                        {replaceError && (
-                            <div className="p-3 bg-red-100 text-red-700 border-2 border-red-200 font-bold text-sm uppercase">
-                                {replaceError}
-                            </div>
-                        )}
+                        {replaceError && <div className="p-3 bg-red-100 text-red-700 border-2 border-red-200 font-bold text-sm uppercase">{replaceError}</div>}
 
                         {replaceResults.map((r, i) => (
-                            <button
-                                key={i}
-                                onClick={() => handleReplaceSelect(r)}
-                                className="w-full text-left bg-white border-3 border-secondary p-4 shadow-neo-sm hover:bg-highlight hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
-                            >
+                            <button key={i} onClick={() => handleReplaceSelect(r)} className="w-full text-left bg-white border-3 border-secondary p-4 shadow-neo-sm hover:bg-highlight hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all">
                                 <div className="flex justify-between items-start mb-2">
                                     <h3 className="font-black text-secondary uppercase text-sm leading-tight">{r.name}</h3>
                                     <span className="text-[9px] font-black uppercase text-secondary/40 bg-secondary/5 px-1.5 py-0.5 border border-secondary/10 shrink-0 ml-2">{r.source || 'AI'}</span>
                                 </div>
                                 <div className="flex gap-2">
                                     {[
-                                        { label: 'kcal', val: Math.round(r.macros.calories), cls: 'text-gray-400' },
-                                        { label: 'p', val: `${Math.round(r.macros.protein)}g`, cls: 'text-primary' },
-                                        { label: 'c', val: `${Math.round(r.macros.carbs)}g`, cls: 'text-accent' },
-                                        { label: 'f', val: `${Math.round(r.macros.fat)}g`, cls: 'text-highlight' },
-                                    ].map(({ label, val, cls }) => (
+                                        { label: 'kcal', val: Math.round(r.macros.calories) },
+                                        { label: 'p', val: `${Math.round(r.macros.protein)}g` },
+                                        { label: 'c', val: `${Math.round(r.macros.carbs)}g` },
+                                        { label: 'f', val: `${Math.round(r.macros.fat)}g` },
+                                    ].map(({ label, val }) => (
                                         <div key={label} className="flex-1 text-center bg-secondary/5 border border-secondary/10 py-1">
-                                            <p className={`text-[8px] font-bold uppercase ${cls}`}>{label}</p>
+                                            <p className="text-[8px] font-bold uppercase text-secondary/40">{label}</p>
                                             <p className="font-black text-secondary text-xs">{val}</p>
                                         </div>
                                     ))}
@@ -385,7 +427,7 @@ const AILogger: React.FC<AILoggerProps> = ({ onBack, onLogItems }) => {
                             <div className="text-center py-12 opacity-30">
                                 <SearchIcon size={48} className="mx-auto mb-3" strokeWidth={1.5} />
                                 <p className="text-xs font-black uppercase tracking-widest">Search to replace</p>
-                                <p className="text-[10px] font-bold mt-1">Tap the arrow or press Enter</p>
+                                <p className="text-[10px] font-bold mt-1">Searches your database & web</p>
                             </div>
                         )}
                     </div>

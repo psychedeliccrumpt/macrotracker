@@ -24,29 +24,28 @@ const FoodLogHub: React.FC<FoodLogHubProps> = ({ onQuickAdd, onSearch, onRecipe,
         {/* AI Quick Log (New & Shiny) */}
         <button
           onClick={onAI}
-          className="col-span-2 group relative bg-primary border-3 border-secondary p-6 shadow-neo hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all active:bg-secondary text-left flex items-center gap-4"
+          className="col-span-2 group relative bg-surface border-3 border-secondary p-6 shadow-neo hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all active:bg-gray-50 text-left flex items-center gap-4"
         >
-          <div className="bg-white p-3 border-3 border-secondary text-secondary shadow-sm shrink-0">
-            <Sparkles size={24} strokeWidth={3} className="text-primary" />
+          <div className="bg-secondary p-3 border-3 border-secondary text-white shadow-sm shrink-0">
+            <Sparkles size={24} strokeWidth={3} className="text-white" />
           </div>
           <div>
-            <h2 className="text-xl font-black uppercase text-white tracking-tight">AI Quick Log</h2>
-            <p className="text-white/70 font-bold uppercase text-[10px] tracking-widest mt-1">Voice or Text to AI</p>
+            <h2 className="text-xl font-black uppercase text-secondary tracking-tight">AI Quick Log</h2>
+            <p className="text-gray-500 font-bold uppercase text-[10px] tracking-widest mt-1">Voice or Text to AI</p>
           </div>
-          <div className="absolute top-2 right-2 bg-highlight px-2 py-0.5 border-2 border-secondary -rotate-3 text-[10px] font-black uppercase">NEW</div>
         </button>
 
         {/* Scan Button (Prominent) */}
         <button
           onClick={onScan}
-          className="col-span-2 group relative bg-secondary border-3 border-secondary p-6 shadow-neo hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all active:bg-black text-left flex items-center gap-4"
+          className="col-span-2 group relative bg-surface border-3 border-secondary p-6 shadow-neo hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all active:bg-gray-50 text-left flex items-center gap-4"
         >
-          <div className="bg-white p-3 border-3 border-secondary text-secondary shadow-sm shrink-0">
+          <div className="bg-secondary p-3 border-3 border-secondary text-white shadow-sm shrink-0">
             <ScanLine size={24} strokeWidth={3} />
           </div>
           <div>
-            <h2 className="text-xl font-black uppercase text-white">Scan Label</h2>
-            <p className="text-gray-400 font-bold uppercase text-[10px] tracking-wide mt-1">AI-Powered Extraction</p>
+            <h2 className="text-xl font-black uppercase text-secondary">Scan Label</h2>
+            <p className="text-gray-500 font-bold uppercase text-[10px] tracking-wide mt-1">AI-Powered Extraction</p>
           </div>
         </button>
 
