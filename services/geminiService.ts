@@ -6,9 +6,12 @@ const ai = new GoogleGenAI({ apiKey: apiKey || '' });
 
 const extractJson = (text: string): any => {
   try {
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) return null;
-    return JSON.parse(match[0]);
+    // Try array first (e.g. meal breakdown), then object (e.g. label scan)
+    const arrayMatch = text.match(/\[[\s\S]*\]/);
+    if (arrayMatch) return JSON.parse(arrayMatch[0]);
+    const objectMatch = text.match(/\{[\s\S]*\}/);
+    if (objectMatch) return JSON.parse(objectMatch[0]);
+    return null;
   } catch (e) {
     return null;
   }
@@ -167,11 +170,26 @@ export const analyzeNaturalLanguageMeal = async (text: string): Promise<SearchRe
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: [{ role: "user", parts: [{ text: `Meal breakdown: ${text}. Return JSON array.` }] }]
+      contents: [{ role: "user", parts: [{ text: `Break down this meal into individual food items: "${text}"
+
+Return a JSON array where each element has:
+- name: string
+- calories: number (kcal)
+- protein: number (grams)
+- fat: number (grams)
+- carbs: number (grams)
+- servingSize: string (e.g. "1 cup", "2 eggs")
+- quantity: number
+- unit: string
+- servingWeight: number (grams)
+
+Return ONLY the JSON array, no explanation.` }] }]
     });
 
     const result = extractJson(response.text || '[]');
-    const items = Array.isArray(result) ? result : [result];
+    const items = (Array.isArray(result) ? result : result ? [result] : []).filter(Boolean);
+
+    if (items.length === 0) throw new Error('Could not parse meal items. Try being more specific.');
 
     return items.map((item: any) => ({
       name: item.name,
