@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, Send, ArrowLeft, Loader2, Sparkles, CheckCircle2, AlertCircle, Trash2 } from 'lucide-react';
 import { analyzeNaturalLanguageMeal } from '../services/geminiService';
+import { transcribeAudio } from '../services/whisperService';
 import { SearchResult, Macros } from '../types';
 import EditorModal from './EditorModal';
 
@@ -12,91 +13,67 @@ interface AILoggerProps {
 const AILogger: React.FC<AILoggerProps> = ({ onBack, onLogItems }) => {
     const [text, setText] = useState('');
     const [isListening, setIsListening] = useState(false);
+    const [isTranscribing, setIsTranscribing] = useState(false);
     const [loading, setLoading] = useState(false);
     const [results, setResults] = useState<any[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
-    const recognitionRef = useRef<any>(null);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const chunksRef = useRef<Blob[]>([]);
+    const streamRef = useRef<MediaStream | null>(null);
 
-    // We need to keep track of the text value when listening starts to append correctly
-    const baseTextRef = useRef('');
-
+    // Cleanup mic stream on unmount
     useEffect(() => {
-        // Check for Web Speech API support
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-        if (SpeechRecognition) {
-            recognitionRef.current = new SpeechRecognition();
-            recognitionRef.current.continuous = true; // Enable continuous listening
-            recognitionRef.current.interimResults = true; // Enable real-time results
-            recognitionRef.current.lang = 'en-US';
-
-            recognitionRef.current.onstart = () => {
-                setIsListening(true);
-                baseTextRef.current = text; // Snapshot current text
-            };
-
-            recognitionRef.current.onresult = (event: any) => {
-                let finalTranscript = '';
-                let interimTranscript = '';
-
-                for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    if (event.results[i].isFinal) {
-                        finalTranscript += event.results[i][0].transcript;
-                    } else {
-                        interimTranscript += event.results[i][0].transcript;
-                    }
-                }
-
-                // If we have final transcript, update baseTextRef for next chunks
-                if (finalTranscript) {
-                    baseTextRef.current = (baseTextRef.current + ' ' + finalTranscript).trim();
-                }
-
-                // Update visible text
-                const newText = (baseTextRef.current + ' ' + interimTranscript).trim();
-                setText(newText);
-            };
-
-            recognitionRef.current.onerror = (event: any) => {
-                console.error('Speech recognition error:', event.error);
-                if (event.error === 'no-speech') {
-                    return; // Ignore no-speech error in continuous mode
-                }
-                setIsListening(false);
-                setError(`Voice Error: ${event.error}`);
-            };
-
-            recognitionRef.current.onend = () => {
-                // In continuous mode, it might stop if user stops talking for a LONG time or network error
-                // We check existing isListening state to decide if we should restart (if we wanted to be aggressive)
-                // But generally stopping here is fine, user can toggle back on.
-                setIsListening(false);
-            };
-        }
-
         return () => {
-            if (recognitionRef.current) {
-                recognitionRef.current.stop();
-            }
+            mediaRecorderRef.current?.stop();
+            streamRef.current?.getTracks().forEach(t => t.stop());
         };
-        // Remove 'text' dependency to avoid re-binding listener on every keystroke
-        // We use baseTextRef to handle state updates
     }, []);
 
-    const toggleListening = () => {
+    const toggleListening = async () => {
         if (isListening) {
-            recognitionRef.current?.stop();
-        } else {
-            setError(null);
-            try {
-                // Update baseTextRef just before starting to ensure we catch manual edits
-                baseTextRef.current = text;
-                recognitionRef.current?.start();
-            } catch (e) {
-                console.error('Recognition start failed', e);
-                setError('Could not start microphone. Check permissions.');
-            }
+            // Stop → triggers onstop → Whisper transcription
+            mediaRecorderRef.current?.stop();
+            return;
+        }
+
+        setError(null);
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            streamRef.current = stream;
+
+            const mediaRecorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = mediaRecorder;
+            chunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) chunksRef.current.push(e.data);
+            };
+
+            mediaRecorder.onstop = async () => {
+                // Release the mic immediately
+                stream.getTracks().forEach(t => t.stop());
+                setIsListening(false);
+
+                const audioBlob = new Blob(chunksRef.current, { type: mediaRecorder.mimeType });
+                setIsTranscribing(true);
+                try {
+                    const transcript = await transcribeAudio(audioBlob);
+                    // Append to any text the user already typed
+                    setText(prev => (prev ? `${prev} ${transcript}` : transcript).trim());
+                } catch (err: any) {
+                    setError(err.message || 'Transcription failed. Check your OpenAI API key.');
+                } finally {
+                    setIsTranscribing(false);
+                }
+            };
+
+            mediaRecorder.start();
+            setIsListening(true);
+        } catch (e: any) {
+            console.error('Mic error:', e);
+            setError('Could not access microphone. Check browser permissions.');
         }
     };
 
@@ -140,6 +117,10 @@ const AILogger: React.FC<AILoggerProps> = ({ onBack, onLogItems }) => {
         onLogItems(results);
     };
 
+    // Mic button state
+    const micBusy = isListening || isTranscribing;
+    const micLabel = isListening ? 'Stop' : isTranscribing ? 'Transcribing…' : 'Speak';
+
     return (
         <div className="flex flex-col h-full bg-background p-4 overflow-y-auto pb-24">
             {/* Header */}
@@ -156,21 +137,45 @@ const AILogger: React.FC<AILoggerProps> = ({ onBack, onLogItems }) => {
                     <textarea
                         value={text}
                         onChange={(e) => setText(e.target.value)}
-                        placeholder="Describe your meal... (e.g., '2 eggs with cheese and a cup of coffee')"
+                        placeholder="Describe your meal… (e.g., '2 eggs with cheese and a cup of coffee')"
                         className="w-full h-40 p-6 border-3 border-secondary bg-white text-lg font-bold placeholder:text-gray-300 focus:bg-highlight outline-none shadow-neo transition-all resize-none"
                     />
+
+                    {/* Mic button — bottom-right of textarea */}
                     <button
                         onClick={toggleListening}
-                        className={`absolute right-4 bottom-4 w-12 h-12 rounded-full border-3 border-secondary flex items-center justify-center transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-white text-secondary hover:bg-highlight'
+                        disabled={isTranscribing}
+                        title={micLabel}
+                        className={`absolute right-4 bottom-4 w-12 h-12 rounded-full border-3 border-secondary flex items-center justify-center transition-all
+                            ${isListening
+                                ? 'bg-red-500 text-white animate-pulse'
+                                : isTranscribing
+                                    ? 'bg-yellow-400 text-secondary cursor-wait'
+                                    : 'bg-white text-secondary hover:bg-highlight'
                             }`}
                     >
-                        {isListening ? <MicOff size={24} /> : <Mic size={24} />}
+                        {isTranscribing
+                            ? <Loader2 size={22} className="animate-spin" />
+                            : isListening
+                                ? <MicOff size={24} />
+                                : <Mic size={24} />
+                        }
                     </button>
                 </div>
 
+                {/* Recording / transcribing status hint */}
+                {(isListening || isTranscribing) && (
+                    <p className={`text-xs font-bold uppercase tracking-widest text-center
+                        ${isListening ? 'text-red-500' : 'text-yellow-600'}`}>
+                        {isListening
+                            ? '● Recording — tap mic to stop'
+                            : '⏳ Transcribing with Whisper…'}
+                    </p>
+                )}
+
                 <button
                     onClick={handleAnalyze}
-                    disabled={loading || !text.trim()}
+                    disabled={loading || !text.trim() || micBusy}
                     className="w-full py-4 bg-secondary text-white font-black uppercase text-xl border-3 border-secondary shadow-neo hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none active:translate-x-[4px] active:translate-y-[4px] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
                 >
                     {loading ? <Loader2 className="animate-spin" /> : <Sparkles size={24} />}

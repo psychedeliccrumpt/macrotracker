@@ -25,7 +25,7 @@ export const analyzeFoodLabel = async (base64Image: string): Promise<SearchResul
       : base64Image;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       contents: [
         {
           role: "user",
@@ -97,7 +97,7 @@ export const analyzeFoodLabel = async (base64Image: string): Promise<SearchResul
 export const searchFoodNutrition = async (query: string): Promise<SearchResult> => {
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       contents: [
         {
           role: "user",
@@ -166,7 +166,7 @@ export const searchFoodNutrition = async (query: string): Promise<SearchResult> 
 export const analyzeNaturalLanguageMeal = async (text: string): Promise<SearchResult[]> => {
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       contents: [{ role: "user", parts: [{ text: `Meal breakdown: ${text}. Return JSON array.` }] }]
     });
 
