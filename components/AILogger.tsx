@@ -104,11 +104,25 @@ const AILogger: React.FC<AILoggerProps> = ({ onBack, onLogItems }) => {
         }
         setError(null);
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Request high-quality audio by disabling browser processing that might distort speech
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                    sampleRate: 44100,
+                }
+            });
             streamRef.current = stream;
 
             // 1. MediaRecorder → Whisper (accurate multilingual final transcript)
-            const mediaRecorder = new MediaRecorder(stream);
+            // Explicitly request webm/opus which Whisper handles very well.
+            // If the browser (like Safari) doesn't support it, it will fall back to its default (mp4).
+            let options = {};
+            if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+                options = { mimeType: 'audio/webm;codecs=opus' };
+            }
+            const mediaRecorder = new MediaRecorder(stream, options);
             mediaRecorderRef.current = mediaRecorder;
             chunksRef.current = [];
             mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };

@@ -20,8 +20,10 @@ export const transcribeAudio = async (audioBlob: Blob): Promise<string> => {
   const formData = new FormData();
   formData.append('file', audioBlob, `recording.${ext}`);
   formData.append('model', 'whisper-1');
-  // Intentionally omitting 'language' → Whisper auto-detects every language
-  // and handles mixed-language (code-switching) input well.
+  
+  // Provide context so Whisper knows it's likely hearing food/macro terminology in both English and Chinese
+  // This drastically improves accuracy for domain-specific words and mixed-language input
+  formData.append('prompt', 'This is a voice note logging food for a diet tracker. Common terms: calories, macros, protein, carbs, fat, grams, ounces, serving, cup, bowl, breakfast, lunch, dinner, snack. 常见词汇：卡路里，蛋白质，碳水，脂肪，克，份，早饭，午饭，晚饭，零食。');
 
   const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
     method: 'POST',
