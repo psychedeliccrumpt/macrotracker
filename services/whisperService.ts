@@ -14,16 +14,16 @@ export const transcribeAudio = async (audioBlob: Blob): Promise<string> => {
   const mimeType = audioBlob.type || 'audio/webm';
   const ext = mimeType.includes('mp4') ? 'mp4'
     : mimeType.includes('ogg') ? 'ogg'
-    : mimeType.includes('wav') ? 'wav'
-    : 'webm';
+      : mimeType.includes('wav') ? 'wav'
+        : 'webm';
 
   const formData = new FormData();
   formData.append('file', audioBlob, `recording.${ext}`);
   formData.append('model', 'whisper-1');
-  
+
   // Provide context so Whisper knows it's likely hearing food/macro terminology in both English and Chinese
   // This drastically improves accuracy for domain-specific words and mixed-language input
-  formData.append('prompt', 'This is a voice note logging food for a diet tracker. Common terms: calories, macros, protein, carbs, fat, grams, ounces, serving, cup, bowl, breakfast, lunch, dinner, snack. 常见词汇：卡路里，蛋白质，碳水，脂肪，克，份，早饭，午饭，晚饭，零食。');
+  formData.append('prompt', 'This is a voice note logging food for a diet tracker. Common terms: calories, macros, protein, carbs, fat, grams, ounces, serving, cup, bowl, breakfast, lunch, dinner, snack. 常见词汇：吃，卡路里，蛋白质，碳水，脂肪，克，份，早饭，午饭，晚饭，零食。');
 
   const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
     method: 'POST',

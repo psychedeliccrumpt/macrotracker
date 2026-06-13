@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search as SearchIcon, Loader2, ArrowLeft, ArrowRight, User, Globe, Sparkles } from 'lucide-react';
+import { Search as SearchIcon, Loader2, ArrowLeft, ArrowRight, User, Globe, Sparkles, CookingPot } from 'lucide-react';
 import { foodService } from '../services/foodService';
 import { SearchResult } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -42,6 +42,7 @@ const Search: React.FC<SearchProps> = ({ onSelect, onBack }) => {
     switch (source) {
       case 'personal': return <User size={16} className="text-blue-500" />;
       case 'community': return <Globe size={16} className="text-green-500" />;
+      case 'recipe': return <CookingPot size={16} className="text-orange-500" />;
       default: return <Sparkles size={16} className="text-secondary" />;
     }
   };

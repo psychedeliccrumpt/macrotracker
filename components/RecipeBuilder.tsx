@@ -1,12 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, ArrowLeft, Utensils, ChefHat, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, Trash2, ArrowLeft, Utensils, ChefHat, Loader2, Pencil, Search as SearchIcon, ScanLine, Mic, MicOff } from 'lucide-react';
 import { FoodItem, Macros, Recipe, SearchResult } from '../types';
 import Search from './Search';
+import Scanner from './Scanner';
 import EditorModal from './EditorModal';
 import { recipeService } from '../services/recipeService';
 import { useAuth } from '../contexts/AuthContext';
+import { transcribeAudio } from '../services/whisperService';
+import { analyzeNaturalLanguageMeal } from '../services/geminiService';
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
+
+const NUM_BARS = 9;
 
 interface RecipeBuilderProps {
   // savedRecipes prop is deprecated in favor of internal fetching
@@ -24,9 +29,27 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ onLogRecipe }) => {
   const [recipeName, setRecipeName] = useState('');
   const [ingredients, setIngredients] = useState<FoodItem[]>([]);
   const [showSearch, setShowSearch] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
   const [tempSearchResult, setTempSearchResult] = useState<SearchResult | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [servings, setServings] = useState(1);
+
+  // Edit State
+  const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
+
+  // Voice State
+  const [isListening, setIsListening] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [isParsing, setIsParsing] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [barHeights, setBarHeights] = useState<number[]>(Array(NUM_BARS).fill(4));
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const animFrameRef = useRef<number | null>(null);
 
   // Load Recipes from DB
   useEffect(() => {
@@ -34,6 +57,15 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ onLogRecipe }) => {
       loadRecipes();
     }
   }, [user]);
+
+  // Cleanup voice on unmount
+  useEffect(() => {
+    return () => {
+      mediaRecorderRef.current?.stop();
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      stopWaveform();
+    };
+  }, []);
 
   const loadRecipes = async () => {
     if (!user) return;
@@ -71,18 +103,37 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ onLogRecipe }) => {
     setIngredients(ingredients.filter(i => i.id !== id));
   };
 
+  // ─── Edit recipe ───────────────────────────────────────────
+  const handleStartEdit = (recipe: Recipe) => {
+    setEditingRecipeId(recipe.id);
+    setRecipeName(recipe.name);
+    setServings(recipe.servings);
+    setIngredients(recipe.ingredients.map(ing => ({
+      ...ing,
+      timestamp: Date.now(),
+    })));
+    setIsCreating(true);
+  };
+
+  const handleExitEditor = () => {
+    setIsCreating(false);
+    setEditingRecipeId(null);
+    setRecipeName('');
+    setIngredients([]);
+    setServings(1);
+  };
+
   const handleSave = async () => {
     if (!recipeName.trim() || ingredients.length === 0 || !user) return;
     setIsSaving(true);
     try {
-      await recipeService.create(user.id, recipeName, ingredients, servings);
+      if (editingRecipeId) {
+        await recipeService.update(editingRecipeId, user.id, recipeName, ingredients, servings);
+      } else {
+        await recipeService.create(user.id, recipeName, ingredients, servings);
+      }
       await loadRecipes(); // Reload list
-
-      // Reset and go back to list
-      setRecipeName('');
-      setIngredients([]);
-      setServings(1);
-      setIsCreating(false);
+      handleExitEditor();
     } catch (e: any) {
       console.error("Failed to save recipe", e);
       alert(`Failed to save recipe: ${e.message || 'Unknown error'}. Make sure you have updated the database schema.`);
@@ -104,6 +155,122 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ onLogRecipe }) => {
     }
   };
 
+  // ─── Waveform visualizer ──────────────────────────────────
+  const startWaveform = (stream: MediaStream) => {
+    try {
+      const audioCtx = new AudioContext();
+      audioCtxRef.current = audioCtx;
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 64;
+      analyser.smoothingTimeConstant = 0.75;
+      audioCtx.createMediaStreamSource(stream).connect(analyser);
+      analyserRef.current = analyser;
+
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const step = Math.floor(data.length / NUM_BARS);
+
+      const tick = () => {
+        analyser.getByteFrequencyData(data);
+        const heights = Array.from({ length: NUM_BARS }, (_, i) => {
+          const raw = data[i * step] / 255;
+          const center = (NUM_BARS - 1) / 2;
+          const bias = 1 - (Math.abs(i - center) / center) * 0.25;
+          return Math.max(4, Math.round(raw * 36 * bias));
+        });
+        setBarHeights(heights);
+        animFrameRef.current = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch (_) { /* AudioContext not available */ }
+  };
+
+  const stopWaveform = () => {
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    animFrameRef.current = null;
+    audioCtxRef.current?.close().catch(() => {});
+    audioCtxRef.current = null;
+    analyserRef.current = null;
+    setBarHeights(Array(NUM_BARS).fill(4));
+  };
+
+  // ─── Voice recording ─────────────────────────────────────
+  const toggleVoice = async () => {
+    if (isListening) {
+      mediaRecorderRef.current?.stop();
+      stopWaveform();
+      return;
+    }
+    setVoiceError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 44100,
+        }
+      });
+      streamRef.current = stream;
+
+      let options = {};
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        options = { mimeType: 'audio/webm;codecs=opus' };
+      }
+      const mediaRecorder = new MediaRecorder(stream, options);
+      mediaRecorderRef.current = mediaRecorder;
+      chunksRef.current = [];
+      mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        setIsListening(false);
+        const audioBlob = new Blob(chunksRef.current, { type: mediaRecorder.mimeType });
+
+        // Step 1: Transcribe
+        setIsTranscribing(true);
+        try {
+          const transcript = await transcribeAudio(audioBlob);
+          if (!transcript.trim()) {
+            setVoiceError('No speech detected. Try again.');
+            setIsTranscribing(false);
+            return;
+          }
+
+          // Step 2: Parse with Gemini
+          setIsTranscribing(false);
+          setIsParsing(true);
+          const parsedResults = await analyzeNaturalLanguageMeal(transcript);
+
+          // Step 3: Add each parsed item as an ingredient
+          const newIngredients: FoodItem[] = parsedResults.map((item: any) => ({
+            id: generateId(),
+            name: item.name,
+            calories: item.macros?.calories ?? item.calories ?? 0,
+            protein: item.macros?.protein ?? item.protein ?? 0,
+            fat: item.macros?.fat ?? item.fat ?? 0,
+            carbs: item.macros?.carbs ?? item.carbs ?? 0,
+            quantity: item.quantity || 1,
+            unit: item.unit || 'serving',
+            servingSize: item.servingSize,
+            timestamp: Date.now(),
+            source: 'recipe' as const,
+          }));
+          setIngredients(prev => [...prev, ...newIngredients]);
+        } catch (err: any) {
+          setVoiceError(err.message || 'Voice processing failed.');
+        } finally {
+          setIsTranscribing(false);
+          setIsParsing(false);
+        }
+      };
+      mediaRecorder.start();
+      startWaveform(stream);
+      setIsListening(true);
+    } catch { setVoiceError('Could not access microphone.'); }
+  };
+
+  const voiceBusy = isListening || isTranscribing || isParsing;
+
+  // ─── Subview: Search ──────────────────────────────────────
   if (showSearch) {
     return (
       <Search
@@ -116,7 +283,22 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ onLogRecipe }) => {
     );
   }
 
+  // ─── Subview: Scanner ─────────────────────────────────────
+  if (showScanner) {
+    return (
+      <Scanner
+        onScanComplete={(result) => {
+          setTempSearchResult(result);
+          setShowScanner(false);
+        }}
+        onClose={() => setShowScanner(false)}
+      />
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════
   // LIST VIEW
+  // ═══════════════════════════════════════════════════════════
   if (!isCreating) {
     return (
       <div className="flex flex-col h-full bg-background relative">
@@ -168,6 +350,12 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ onLogRecipe }) => {
                       <Plus size={18} strokeWidth={3} /> Log Meal
                     </button>
                     <button
+                      onClick={() => handleStartEdit(recipe)}
+                      className="px-4 py-3 bg-white text-secondary font-bold border-3 border-secondary hover:bg-highlight transition-colors shadow-neo-sm active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
+                    >
+                      <Pencil size={18} strokeWidth={3} />
+                    </button>
+                    <button
                       onClick={(e) => handleDeleteRecipe(recipe.id, e)}
                       className="px-4 py-3 bg-white text-secondary font-bold border-3 border-secondary hover:bg-red-100 hover:text-red-600 transition-colors shadow-neo-sm active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
                     >
@@ -190,7 +378,9 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ onLogRecipe }) => {
     );
   }
 
-  // CREATE VIEW
+  // ═══════════════════════════════════════════════════════════
+  // CREATE / EDIT VIEW
+  // ═══════════════════════════════════════════════════════════
   return (
     <div className="flex flex-col h-full bg-background">
       {tempSearchResult && (
@@ -203,10 +393,10 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ onLogRecipe }) => {
 
       <div className="p-4 border-b-3 border-secondary bg-surface">
         <div className="flex items-center mb-6">
-          <button onClick={() => setIsCreating(false)} className="mr-4 p-2 border-3 border-secondary bg-white hover:bg-secondary hover:text-white transition-colors shadow-neo-sm">
+          <button onClick={handleExitEditor} className="mr-4 p-2 border-3 border-secondary bg-white hover:bg-secondary hover:text-white transition-colors shadow-neo-sm">
             <ArrowLeft size={24} strokeWidth={3} />
           </button>
-          <h1 className="text-2xl font-black uppercase text-secondary">New Recipe</h1>
+          <h1 className="text-2xl font-black uppercase text-secondary">{editingRecipeId ? 'Edit Recipe' : 'New Recipe'}</h1>
         </div>
         <input
           type="text"
@@ -256,12 +446,74 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ onLogRecipe }) => {
           </div>
         )}
 
-        <button
-          onClick={() => setShowSearch(true)}
-          className="w-full mt-8 py-4 border-3 border-dashed border-secondary bg-white text-secondary font-black uppercase tracking-wider hover:bg-secondary hover:text-white hover:border-solid transition-all flex items-center justify-center gap-2"
-        >
-          <Plus size={24} strokeWidth={3} /> Add Ingredient
-        </button>
+        {/* ─── 3-button add row ───────────────────────────── */}
+        <div className="grid grid-cols-3 gap-2 mt-8">
+          <button
+            onClick={() => setShowSearch(true)}
+            disabled={voiceBusy}
+            className="py-3 border-3 border-dashed border-secondary bg-white text-secondary font-black uppercase text-[10px] tracking-wider hover:bg-secondary hover:text-white hover:border-solid transition-all flex flex-col items-center justify-center gap-1.5 disabled:opacity-40"
+          >
+            <SearchIcon size={20} strokeWidth={3} />
+            Search
+          </button>
+          <button
+            onClick={() => setShowScanner(true)}
+            disabled={voiceBusy}
+            className="py-3 border-3 border-dashed border-secondary bg-white text-secondary font-black uppercase text-[10px] tracking-wider hover:bg-secondary hover:text-white hover:border-solid transition-all flex flex-col items-center justify-center gap-1.5 disabled:opacity-40"
+          >
+            <ScanLine size={20} strokeWidth={3} />
+            Scan
+          </button>
+          <button
+            onClick={toggleVoice}
+            disabled={isTranscribing || isParsing}
+            className={`py-3 border-3 font-black uppercase text-[10px] tracking-wider transition-all flex flex-col items-center justify-center gap-1.5 ${
+              isListening
+                ? 'border-red-500 bg-red-50 text-red-600 animate-pulse'
+                : isTranscribing || isParsing
+                  ? 'border-secondary bg-yellow-50 text-yellow-700 cursor-wait'
+                  : 'border-dashed border-secondary bg-white text-secondary hover:bg-secondary hover:text-white hover:border-solid'
+            }`}
+          >
+            {isTranscribing || isParsing ? (
+              <Loader2 size={20} className="animate-spin" />
+            ) : isListening ? (
+              <MicOff size={20} strokeWidth={3} />
+            ) : (
+              <Mic size={20} strokeWidth={3} />
+            )}
+            {isTranscribing ? 'Listening…' : isParsing ? 'Adding…' : isListening ? 'Stop' : 'Voice'}
+          </button>
+        </div>
+
+        {/* ─── Voice waveform + status ────────────────────── */}
+        {isListening && (
+          <div className="flex items-center justify-center gap-[4px] h-12 px-4 mt-3 bg-red-50 border-2 border-red-200">
+            {barHeights.map((h, i) => (
+              <div
+                key={i}
+                className="w-[4px] rounded-full bg-red-500"
+                style={{
+                  height: `${h}px`,
+                  opacity: 0.5 + (h / 36) * 0.5,
+                  transition: 'height 55ms ease-out, opacity 55ms ease-out',
+                }}
+              />
+            ))}
+          </div>
+        )}
+
+        {(isListening || isTranscribing || isParsing) && (
+          <p className={`text-[9px] font-black uppercase tracking-widest text-center mt-2 ${isListening ? 'text-red-500' : 'text-yellow-600'}`}>
+            {isListening ? '● Recording — speak your ingredients, then tap stop' : isTranscribing ? '⏳ Transcribing with Whisper…' : '🧠 Parsing ingredients with AI…'}
+          </p>
+        )}
+
+        {voiceError && (
+          <p className="text-[10px] font-bold text-red-600 text-center mt-2 bg-red-50 border border-red-200 p-2">
+            {voiceError}
+          </p>
+        )}
       </div>
 
       <div className="p-4 bg-surface border-t-3 border-secondary">
@@ -278,10 +530,10 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ onLogRecipe }) => {
         </div>
         <button
           onClick={handleSave}
-          disabled={!recipeName.trim() || ingredients.length === 0 || isSaving}
+          disabled={!recipeName.trim() || ingredients.length === 0 || isSaving || voiceBusy}
           className="w-full py-4 bg-primary text-white font-black uppercase text-xl border-3 border-secondary shadow-neo active:shadow-none active:translate-x-[4px] active:translate-y-[4px] transition-all disabled:opacity-50 disabled:shadow-none disabled:translate-x-0 disabled:cursor-not-allowed flex justify-center gap-2"
         >
-          {isSaving ? <Loader2 className="animate-spin" /> : 'Save Recipe'}
+          {isSaving ? <Loader2 className="animate-spin" /> : editingRecipeId ? 'Update Recipe' : 'Save Recipe'}
         </button>
       </div>
     </div>

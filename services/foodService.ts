@@ -10,6 +10,8 @@ export const foodService = {
      */
     async search(query: string, userId?: string): Promise<SearchResult[]> {
         try {
+            const results: SearchResult[] = [];
+
             // 1. Search in Supabase (Food table)
             let queryBuilder = supabase
                 .from('Food')
@@ -30,9 +32,9 @@ export const foodService = {
                 console.error('Supabase search error:', error);
             }
 
-            // If we found results, map them
+            // Map food results
             if (data && data.length > 0) {
-                return data.map(item => ({
+                results.push(...data.map(item => ({
                     name: item.name,
                     macros: {
                         calories: item.calories,
@@ -46,13 +48,61 @@ export const foodService = {
                     servingWeight: item.servingWeight,
                     brand: item.brand,
                     source: item.createdById === userId ? 'personal' : 'community'
-                }));
+                })));
             }
 
-            // 2. Fallback to Gemini AI
+            // 2. Search in Recipes (user's saved recipes)
+            if (userId) {
+                const { data: recipeData, error: recipeError } = await supabase
+                    .from('Recipe')
+                    .select(`
+                        id, name, servings,
+                        RecipeItem (
+                            quantity,
+                            Food ( calories, protein, fat, carbs )
+                        )
+                    `)
+                    .eq('createdById', userId)
+                    .ilike('name', `%${query}%`)
+                    .limit(5);
+
+                if (!recipeError && recipeData && recipeData.length > 0) {
+                    const recipeResults: SearchResult[] = recipeData.map((r: any) => {
+                        const servings = r.servings || 1;
+                        const totalMacros = (r.RecipeItem || []).reduce((acc: any, ri: any) => ({
+                            calories: acc.calories + (ri.Food?.calories || 0) * ri.quantity,
+                            protein: acc.protein + (ri.Food?.protein || 0) * ri.quantity,
+                            fat: acc.fat + (ri.Food?.fat || 0) * ri.quantity,
+                            carbs: acc.carbs + (ri.Food?.carbs || 0) * ri.quantity,
+                        }), { calories: 0, protein: 0, fat: 0, carbs: 0 });
+
+                        return {
+                            name: r.name,
+                            macros: {
+                                calories: totalMacros.calories / servings,
+                                protein: totalMacros.protein / servings,
+                                fat: totalMacros.fat / servings,
+                                carbs: totalMacros.carbs / servings,
+                            },
+                            servingSize: `1 serving (of ${servings})`,
+                            quantity: 1,
+                            unit: 'serving',
+                            brand: 'My Recipe',
+                            source: 'recipe'
+                        };
+                    });
+                    results.push(...recipeResults);
+                }
+            }
+
+            // If we found any local results, return them
+            if (results.length > 0) {
+                return results;
+            }
+
+            // 3. Fallback to Gemini AI
             console.log('No local results, asking AI...');
             const aiResult = await searchFoodNutrition(query);
-            // AI returns a single result, wrap in array
             return [aiResult];
 
         } catch (err) {

@@ -158,6 +158,69 @@ export const recipeService = {
     },
 
     /**
+     * Update an existing recipe (header + ingredients)
+     */
+    async update(recipeId: string, userId: string, name: string, ingredients: FoodItem[], servings: number = 1) {
+        // 1. Update Recipe Header
+        const { error: headerError } = await supabase
+            .from('Recipe')
+            .update({ name, servings })
+            .eq('id', recipeId);
+
+        if (headerError) throw headerError;
+
+        // 2. Delete all existing RecipeItems
+        await supabase.from('RecipeItem').delete().eq('recipeId', recipeId);
+
+        // 3. Re-insert ingredients (same auto-save logic as create)
+        const itemsToInsert = [];
+        for (const ing of ingredients) {
+            let foodId = ing.id;
+
+            if (!foodId || foodId.length < 10) {
+                const { data: newFood, error: foodError } = await supabase
+                    .from('Food')
+                    .insert({
+                        id: uuidv4(),
+                        name: ing.name,
+                        calories: ing.calories / ing.quantity,
+                        protein: ing.protein / ing.quantity,
+                        fat: ing.fat / ing.quantity,
+                        carbs: ing.carbs / ing.quantity,
+                        servingSize: ing.unit,
+                        createdById: userId,
+                        isPublic: false
+                    })
+                    .select()
+                    .single();
+
+                if (foodError) {
+                    console.error("Failed to auto-save ingredient:", ing.name, foodError);
+                    continue;
+                }
+                foodId = newFood.id;
+            }
+
+            itemsToInsert.push({
+                id: uuidv4(),
+                recipeId: recipeId,
+                foodId: foodId,
+                quantity: ing.quantity
+            });
+        }
+
+        if (itemsToInsert.length > 0) {
+            const { error: itemsError } = await supabase
+                .from('RecipeItem')
+                .insert(itemsToInsert);
+
+            if (itemsError) throw itemsError;
+        }
+
+        return { id: recipeId, name, servings };
+    },
+
+    /**
      * Delete a recipe
      */
     async delete(recipeId: string) {
