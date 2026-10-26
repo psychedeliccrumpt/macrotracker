@@ -94,6 +94,59 @@ export const userService = {
         }
         return data || [];
     },
+
+    /**
+     * Update an existing weight log entry
+     */
+    async updateWeightLog(logId: string, weight: number, userId?: string) {
+        const { data, error } = await supabase
+            .from('WeightLog')
+            .update({ weight })
+            .eq('id', logId)
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error updating weight log:', error);
+            throw error;
+        }
+
+        // Update profile weight if this is the most recent log
+        if (userId) {
+            const { data: latest } = await supabase
+                .from('WeightLog')
+                .select('id')
+                .eq('userId', userId)
+                .order('date', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (latest && latest.id === logId) {
+                await supabase
+                    .from('Profile')
+                    .update({ weight, updatedAt: new Date().toISOString() })
+                    .eq('id', userId);
+            }
+        }
+
+        return data;
+    },
+
+    /**
+     * Delete a weight log entry
+     */
+    async deleteWeightLog(logId: string) {
+        const { error } = await supabase
+            .from('WeightLog')
+            .delete()
+            .eq('id', logId);
+
+        if (error) {
+            console.error('Error deleting weight log:', error);
+            throw error;
+        }
+        return true;
+    },
     /**
      * Get goal history for a user
      */

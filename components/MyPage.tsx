@@ -12,9 +12,10 @@ interface MyPageProps {
   weightLogs: WeightLog[];
   logs: FoodItem[];
   onUpdateProfile?: (profile: UserProfile) => void;
+  onEditWeightLog?: (log: WeightLog) => void;
 }
 
-const MyPage: React.FC<MyPageProps> = ({ weightLogs, logs, onUpdateProfile }) => {
+const MyPage: React.FC<MyPageProps> = ({ weightLogs, logs, onUpdateProfile, onEditWeightLog }) => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<MyTab>(() => {
     const saved = localStorage.getItem('my_page_tab');
@@ -136,6 +137,7 @@ const MyPage: React.FC<MyPageProps> = ({ weightLogs, logs, onUpdateProfile }) =>
             foodLogs={logs}
             currentProfile={profile}
             onUpdateProfile={handleSaveProfile}
+            onEditWeightLog={onEditWeightLog}
           />
         )}
         {activeTab === 'calculator' && (

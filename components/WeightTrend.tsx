@@ -1,16 +1,17 @@
 import React from 'react';
 import { WeightLog, FoodItem, UserProfile } from '../types';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
-import { TrendingUp, Activity } from 'lucide-react';
+import { TrendingUp, Activity, Pencil, Scale } from 'lucide-react';
 
 interface WeightTrendProps {
   weightLogs: WeightLog[];
   foodLogs: FoodItem[];
   currentProfile?: UserProfile;
   onUpdateProfile?: (profile: UserProfile) => void;
+  onEditWeightLog?: (log: WeightLog) => void;
 }
 
-const WeightTrend: React.FC<WeightTrendProps> = ({ weightLogs, foodLogs, currentProfile, onUpdateProfile }) => {
+const WeightTrend: React.FC<WeightTrendProps> = ({ weightLogs, foodLogs, currentProfile, onUpdateProfile, onEditWeightLog }) => {
   // 1. Group all dates and aggregate calories
   const aggregatedData: { [key: string]: { date: string, weight?: number, calories: number, timestamp: number } } = {};
 
@@ -322,6 +323,49 @@ const WeightTrend: React.FC<WeightTrendProps> = ({ weightLogs, foodLogs, current
                 )}
               </div>
             </div>
+
+            {/* Weight Log History */}
+            {sortedWeightLogs.length > 0 && (
+              <div className="mt-8 mb-12">
+                <div className="bg-white border-3 border-secondary p-4 shadow-neo">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 bg-primary border-2 border-secondary shadow-neo-sm">
+                      <Scale className="text-white" size={24} />
+                    </div>
+                    <div>
+                      <h3 className="text-[10px] font-black uppercase text-secondary/40 tracking-widest leading-none">History</h3>
+                      <p className="text-xl font-black text-secondary uppercase italic">Weight Logs</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {[...sortedWeightLogs].reverse().map((log) => {
+                      const d = new Date(log.timestamp);
+                      const dateStr = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+                      return (
+                        <div
+                          key={log.id}
+                          className="flex items-center justify-between p-3 bg-gray-50 border-2 border-secondary/10 hover:border-secondary/30 transition-colors group"
+                        >
+                          <div>
+                            <p className="text-xs font-bold text-secondary/50 uppercase font-mono">{dateStr}</p>
+                            <p className="text-lg font-black text-secondary font-mono">{log.weight} <span className="text-xs">kg</span></p>
+                          </div>
+                          {onEditWeightLog && (
+                            <button
+                              onClick={() => onEditWeightLog(log)}
+                              className="p-2 border-2 border-transparent hover:border-secondary hover:bg-highlight transition-all opacity-50 group-hover:opacity-100"
+                            >
+                              <Pencil size={16} strokeWidth={3} className="text-secondary" />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
 

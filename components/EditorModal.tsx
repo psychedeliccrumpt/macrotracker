@@ -30,6 +30,8 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
   const isSavedInDB = (initialData as any).source === 'personal' || (initialData as any).source === 'community';
 
   // 2. Extract Base Information (The Canonical "Label" Data)
+  // IMPORTANT: For existing FoodItems, the stored macros are ALREADY SCALED
+  // to the logged quantity. We need to normalize them back to "per 1 unit" values.
   const baseInfo = useMemo(() => {
     if (!isExistingItem) {
       const res = initialData as SearchResult;
@@ -42,29 +44,52 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
       };
     } else {
       const item = initialData as FoodItem;
+      const storedQty = item.quantity || 1;
+      const storedUnit = (item.unit || 'serving').toLowerCase();
+      // Normalize: stored macros are for storedQty units, so per-unit = stored / storedQty
+      const perUnitMacros = {
+        calories: item.calories / storedQty,
+        protein: item.protein / storedQty,
+        fat: item.fat / storedQty,
+        carbs: item.carbs / storedQty
+      };
+
+      // Weight per 1 unit of the stored unit (in grams)
+      // This is crucial for macrosPerGram to work correctly
+      let weightPer1Unit = 0;
+      if (storedUnit === 'g' || storedUnit === 'ml') {
+        weightPer1Unit = 1; // 1g = 1 gram
+      } else if (storedUnit === 'oz') {
+        weightPer1Unit = 28.35;
+      } else if (item.servingWeight) {
+        // For 'serving', 'cup', 'piece' etc: use stored servingWeight
+        weightPer1Unit = item.servingWeight;
+      } else {
+        // Try to extract from servingSize string
+        weightPer1Unit = extractGrams(item.servingSize || '') || 0;
+      }
+
       return {
-        macros: {
-          calories: item.calories,
-          protein: item.protein,
-          fat: item.fat,
-          carbs: item.carbs
-        },
-        qty: item.quantity || 1,
+        macros: perUnitMacros,       // Now represents macros for 1 unit
+        qty: 1,                       // Base is always 1 unit after normalization
         unit: item.unit || 'serving',
-        weight: item.servingWeight || extractGrams(item.servingSize || '') || 0,
-        servingSize: item.servingSize || `${item.quantity} ${item.unit}`
+        weight: weightPer1Unit,       // Grams per 1 unit of the stored unit
+        servingSize: item.servingSize || `1 ${item.unit}`,
+        originalQty: storedQty        // Keep track of original for initial display
       };
     }
   }, [initialData, isExistingItem]);
 
   // 3. Conversion Math
   const macrosPerGram = useMemo(() => {
-    if (baseInfo.weight > 0) {
+    // For gram-based units: macros are per 1 unit, and weight is grams per 1 unit
+    if (baseInfo.weight > 0 && baseInfo.qty > 0) {
+      const gramsPerBaseUnit = baseInfo.weight / baseInfo.qty;
       return {
-        calories: baseInfo.macros.calories / baseInfo.weight,
-        protein: baseInfo.macros.protein / baseInfo.weight,
-        fat: baseInfo.macros.fat / baseInfo.weight,
-        carbs: baseInfo.macros.carbs / baseInfo.weight,
+        calories: baseInfo.macros.calories / gramsPerBaseUnit,
+        protein: baseInfo.macros.protein / gramsPerBaseUnit,
+        fat: baseInfo.macros.fat / gramsPerBaseUnit,
+        carbs: baseInfo.macros.carbs / gramsPerBaseUnit,
       };
     }
     return null;
@@ -95,7 +120,9 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
 
   // 4. Component State
   const [unit, setUnit] = useState<string>(baseInfo.unit);
-  const [inputQty, setInputQty] = useState<string>(baseInfo.qty.toString());
+  const [inputQty, setInputQty] = useState<string>(
+    isExistingItem ? ((initialData as FoodItem).quantity || 1).toString() : baseInfo.qty.toString()
+  );
   const [isPublic, setIsPublic] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);

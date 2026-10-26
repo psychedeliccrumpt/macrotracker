@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import { X, Check, Scale } from 'lucide-react';
+import { X, Check, Scale, Trash2 } from 'lucide-react';
 
 interface WeightLogModalProps {
   onSave: (weight: number) => void;
   onCancel: () => void;
+  onDelete?: () => void;
+  initialWeight?: number;
+  isEditing?: boolean;
 }
 
-const WeightLogModal: React.FC<WeightLogModalProps> = ({ onSave, onCancel }) => {
-  const [weight, setWeight] = useState<string>('');
+const WeightLogModal: React.FC<WeightLogModalProps> = ({ onSave, onCancel, onDelete, initialWeight, isEditing }) => {
+  const [weight, setWeight] = useState<string>(initialWeight ? String(initialWeight) : '');
 
   const handleSave = () => {
     const w = parseFloat(weight);
@@ -23,7 +26,7 @@ const WeightLogModal: React.FC<WeightLogModalProps> = ({ onSave, onCancel }) => 
         {/* Header */}
         <div className="flex justify-between items-center p-4 border-b-3 border-secondary bg-surface">
           <h2 className="text-xl font-black uppercase text-secondary flex items-center gap-2">
-            <Scale size={24} className="text-primary" fill="currentColor" /> Log Weight
+            <Scale size={24} className="text-primary" fill="currentColor" /> {isEditing ? 'Edit Weight' : 'Log Weight'}
           </h2>
           <button onClick={onCancel} className="p-2 border-3 border-secondary hover:bg-secondary hover:text-white transition-colors bg-white shadow-neo-sm">
             <X size={20} strokeWidth={3} />
@@ -32,7 +35,7 @@ const WeightLogModal: React.FC<WeightLogModalProps> = ({ onSave, onCancel }) => 
 
         <div className="p-8">
           <div className="text-center mb-8">
-            <label className="block text-sm font-black uppercase mb-4 tracking-wider text-secondary">Current Weight</label>
+            <label className="block text-sm font-black uppercase mb-4 tracking-wider text-secondary">{isEditing ? 'Update Weight' : 'Current Weight'}</label>
             <div className="relative inline-block w-full max-w-[200px]">
               <input
                 type="number"
@@ -60,8 +63,18 @@ const WeightLogModal: React.FC<WeightLogModalProps> = ({ onSave, onCancel }) => 
             className="w-full py-4 bg-primary text-white font-black uppercase tracking-widest text-lg border-3 border-secondary hover:bg-violet-600 transition-colors flex items-center justify-center gap-3 shadow-neo active:translate-x-[4px] active:translate-y-[4px] active:shadow-none disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Check size={24} strokeWidth={3} />
-            Save Log
+            {isEditing ? 'Update' : 'Save Log'}
           </button>
+
+          {isEditing && onDelete && (
+            <button
+              onClick={onDelete}
+              className="w-full mt-3 py-3 bg-white text-red-600 font-black uppercase tracking-widest text-sm border-3 border-secondary hover:bg-red-50 transition-colors flex items-center justify-center gap-2 shadow-neo-sm active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
+            >
+              <Trash2 size={18} strokeWidth={3} />
+              Delete Entry
+            </button>
+          )}
         </div>
       </div>
     </div>

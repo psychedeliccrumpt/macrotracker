@@ -50,6 +50,7 @@ const AuthenticatedApp: React.FC = () => {
   const [editingItem, setEditingItem] = useState<FoodItem | null>(null);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [showWeightLog, setShowWeightLog] = useState(false);
+  const [editingWeightLog, setEditingWeightLog] = useState<WeightLog | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
 
@@ -192,6 +193,34 @@ const AuthenticatedApp: React.FC = () => {
     }
   };
 
+  const updateWeightLog = async (weight: number) => {
+    if (!user || !editingWeightLog) return;
+    try {
+      await userService.updateWeightLog(editingWeightLog.id, weight, user.id);
+      setWeightLogs(prev => prev.map(log =>
+        log.id === editingWeightLog.id ? { ...log, weight } : log
+      ));
+      setEditingWeightLog(null);
+    } catch (e: any) {
+      console.error('Failed to update weight log', e);
+      alert(`Failed to update: ${e.message}`);
+    }
+  };
+
+  const deleteWeightLog = async () => {
+    if (!editingWeightLog) return;
+    if (!confirm('Delete this weight entry?')) return;
+    try {
+      setWeightLogs(prev => prev.filter(log => log.id !== editingWeightLog.id));
+      await userService.deleteWeightLog(editingWeightLog.id);
+      setEditingWeightLog(null);
+    } catch (e: any) {
+      console.error('Failed to delete weight log', e);
+      alert(`Failed to delete: ${e.message}`);
+      loadLogs(); // Revert
+    }
+  };
+
   const updateLog = async (updatedData: Omit<FoodItem, 'id' | 'timestamp'>) => {
     if (!editingItem) return;
 
@@ -293,6 +322,7 @@ const AuthenticatedApp: React.FC = () => {
           weightLogs={weightLogs}
           logs={logs}
           onUpdateProfile={setProfile}
+          onEditWeightLog={(log) => setEditingWeightLog(log)}
         />;
       case 'search':
         return <Search
@@ -381,10 +411,13 @@ const AuthenticatedApp: React.FC = () => {
       )}
 
       {/* Global Weight Log Modal */}
-      {showWeightLog && (
+      {(showWeightLog || editingWeightLog) && (
         <WeightLogModal
-          onSave={addWeightLog}
-          onCancel={() => setShowWeightLog(false)}
+          onSave={editingWeightLog ? updateWeightLog : addWeightLog}
+          onCancel={() => { setShowWeightLog(false); setEditingWeightLog(null); }}
+          onDelete={editingWeightLog ? deleteWeightLog : undefined}
+          initialWeight={editingWeightLog?.weight}
+          isEditing={!!editingWeightLog}
         />
       )}
 
