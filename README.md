@@ -15,6 +15,14 @@ View your app in AI Studio: https://ai.studio/apps/drive/1I0frae_22edohlAqRjyUBW
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+2. Copy `.env.example` to `.env` and fill in the values. `GEMINI_API_KEY` and `OPENAI_API_KEY` are server-only: they are read by the functions in `api/` and must never be prefixed with `VITE_`.
 3. Run the app:
    `npm run dev`
+
+## Deploying (Vercel)
+
+AI calls go through the server functions in `api/` (`/api/ai`, `/api/transcribe`), which require a signed-in Supabase session. In the Vercel project settings, set these environment variables:
+
+- `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (public)
+- `GEMINI_API_KEY`, `OPENAI_API_KEY` (server-only; do not add `VITE_` versions)
+

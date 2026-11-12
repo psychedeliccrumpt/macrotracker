@@ -1,43 +1,16 @@
-const openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY;
+import { callApi, blobToBase64 } from './apiClient';
 
 /**
- * Sends an audio blob to OpenAI Whisper for transcription.
+ * Sends an audio blob to OpenAI Whisper for transcription, via the app's
+ * server function (api/transcribe.ts) so the OpenAI key stays on the server.
  * No language is specified so Whisper auto-detects and handles
  * multilingual / code-switching input natively.
  */
 export const transcribeAudio = async (audioBlob: Blob): Promise<string> => {
-  if (!openaiApiKey) {
-    throw new Error('Missing VITE_OPENAI_API_KEY. Add it to your .env file.');
-  }
-
-  // Derive a sensible file extension from the recorded MIME type
-  const mimeType = audioBlob.type || 'audio/webm';
-  const ext = mimeType.includes('mp4') ? 'mp4'
-    : mimeType.includes('ogg') ? 'ogg'
-      : mimeType.includes('wav') ? 'wav'
-        : 'webm';
-
-  const formData = new FormData();
-  formData.append('file', audioBlob, `recording.${ext}`);
-  formData.append('model', 'whisper-1');
-
-  // Provide context so Whisper knows it's likely hearing food/macro terminology in both English and Chinese
-  // This drastically improves accuracy for domain-specific words and mixed-language input
-  formData.append('prompt', 'This is a voice note logging food for a diet tracker. Common terms: calories, macros, protein, carbs, fat, grams, ounces, serving, cup, bowl, breakfast, lunch, dinner, snack. 常见词汇：吃，卡路里，蛋白质，碳水，脂肪，克，份，早饭，午饭，晚饭，零食。');
-
-  const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${openaiApiKey}`,
-    },
-    body: formData,
+  const audio = await blobToBase64(audioBlob);
+  const { text } = await callApi<{ text: string }>('/api/transcribe', {
+    audio,
+    mimeType: audioBlob.type || 'audio/webm',
   });
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err?.error?.message || `Whisper API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return data.text?.trim() ?? '';
+  return text ?? '';
 };
