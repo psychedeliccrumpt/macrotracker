@@ -2,6 +2,105 @@ import { supabase } from './supabase';
 import { Recipe, FoodItem } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
+/*
+ * RecipeItem.quantity is ALWAYS a multiplier of the linked Food row's macros:
+ *   ingredient macros = Food macros x RecipeItem.quantity
+ * (foodService.search relies on the same rule for recipe results.)
+ *
+ * Food rows saved from the editor store macros for ONE labeled serving
+ * (e.g. "15 chips"), while ingredients can be entered in any unit (g, oz, chips...).
+ * So RecipeItem.quantity must be "number of Food servings", not the raw amount typed.
+ */
+
+const MASS_UNITS = ['g', 'ml', 'oz'];
+const GRAMS_PER_UNIT: Record<string, number> = { g: 1, ml: 1, oz: 28.35 };
+
+type FoodMacros = { id: string; calories: number; protein: number; fat: number; carbs: number };
+
+/**
+ * How many Food servings an ingredient represents, derived from its macros.
+ * Ingredient macros come from the Food's macros scaled by the amount, so the ratio
+ * recovers the multiplier regardless of the unit the user picked.
+ * Calories are preferred so the recipe keeps exactly the calories the user saw.
+ */
+const servingsOfFood = (ing: FoodItem, food: FoodMacros): number | null => {
+    const fields: (keyof Omit<FoodMacros, 'id'>)[] = ['calories', 'protein', 'carbs', 'fat'];
+    for (const f of fields) {
+        if (food[f] > 0) return (ing[f] || 0) / food[f];
+    }
+    return null; // Food has no macros at all; can't derive a multiplier
+};
+
+/** Save an ingredient that has no Food row yet as a per-1-unit Food. */
+const autoSaveIngredient = async (ing: FoodItem, userId: string): Promise<string | null> => {
+    const unit = (ing.unit || 'serving').toLowerCase();
+    const { data, error } = await supabase
+        .from('Food')
+        .insert({
+            id: uuidv4(),
+            name: ing.name,
+            calories: ing.calories / ing.quantity, // per 1 unit
+            protein: ing.protein / ing.quantity,
+            fat: ing.fat / ing.quantity,
+            carbs: ing.carbs / ing.quantity,
+            servingSize: `1 ${unit}`,
+            quantity: 1,
+            unit,
+            servingWeight: MASS_UNITS.includes(unit) ? GRAMS_PER_UNIT[unit] : (ing.servingWeight || null),
+            brand: ing.brand,
+            createdById: userId,
+            isPublic: false
+        })
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Failed to auto-save ingredient:', ing.name, error);
+        return null;
+    }
+    return data.id;
+};
+
+/** Turn the builder's ingredient list into RecipeItem rows with correct multipliers. */
+const buildRecipeItems = async (recipeId: string, userId: string, ingredients: FoodItem[]) => {
+    // Look up macros for ingredients that already point at a Food row
+    const existingIds = ingredients.map(i => i.id).filter(id => id && id.length >= 10);
+    const foodsById = new Map<string, FoodMacros>();
+    if (existingIds.length > 0) {
+        const { data, error } = await supabase
+            .from('Food')
+            .select('id, calories, protein, fat, carbs')
+            .in('id', existingIds);
+        if (error) throw error;
+        (data || []).forEach((f: FoodMacros) => foodsById.set(f.id, f));
+    }
+
+    const items = [];
+    for (const ing of ingredients) {
+        if (!(ing.quantity > 0)) continue; // zero amount contributes nothing
+
+        let foodId: string | null = null;
+        let multiplier: number | null = null;
+
+        const food = ing.id ? foodsById.get(ing.id) : undefined;
+        if (food) {
+            foodId = food.id;
+            // A Food with no macros (e.g. water) contributes 0 at any multiplier
+            multiplier = servingsOfFood(ing, food) ?? ing.quantity;
+        }
+
+        if (foodId === null || multiplier === null) {
+            // New ingredient with no Food row yet: store it per 1 unit
+            foodId = await autoSaveIngredient(ing, userId);
+            multiplier = ing.quantity;
+        }
+        if (!foodId) continue;
+
+        items.push({ id: uuidv4(), recipeId, foodId, quantity: multiplier });
+    }
+    return items;
+};
+
 export const recipeService = {
     /**
      * Get all private recipes for a user
@@ -24,7 +123,9 @@ export const recipeService = {
                 protein,
                 fat,
                 carbs,
-                servingSize
+                servingSize,
+                quantity,
+                unit
             )
         )
       `)
@@ -38,23 +139,25 @@ export const recipeService = {
         // Map DB structure to App structure
         return data.map((r: any) => {
             // Calculate total macros on the fly
-            const ingredients = r.RecipeItem.map((ri: any) => ({
-                id: ri.Food.id,
-                name: ri.Food.name,
-                quantity: ri.quantity, // This works if 'quantity' in RecipeItem is a multiplier of the base serving.
-                // But wait, our App expects 'quantity' to be the number of servings or units. 
-                // In the DB, RecipeItem.quantity is the amount of the Food used.
-                // Food.servingSize is a string label.
-                // We need to verify if Food.calories is per serving or per 100g.
-                // In createFood, we saved the BASE macros. 
-                // So if Food has 100kcal base, and RecipeItem has quantity 2, it means 200kcal.
-
-                unit: 'serving', // Defaulting for now
-                calories: ri.Food.calories * ri.quantity,
-                protein: ri.Food.protein * ri.quantity,
-                fat: ri.Food.fat * ri.quantity,
-                carbs: ri.Food.carbs * ri.quantity,
-            }));
+            const ingredients = r.RecipeItem.map((ri: any) => {
+                const f = ri.Food;
+                // Show the amount in the Food's own unit (e.g. "30 chips", "100 g").
+                // Older auto-saved Foods only stored the unit in servingSize (e.g. "g").
+                const legacyUnit = f.servingSize && /^[a-zA-Z]+$/.test(f.servingSize.trim()) ? f.servingSize.trim() : null;
+                const unit = f.unit || legacyUnit || 'serving';
+                const perServingQty = f.unit ? (f.quantity || 1) : 1;
+                return {
+                    id: f.id,
+                    name: f.name,
+                    quantity: Math.round(ri.quantity * perServingQty * 100) / 100,
+                    unit,
+                    servingSize: f.servingSize,
+                    calories: f.calories * ri.quantity,
+                    protein: f.protein * ri.quantity,
+                    fat: f.fat * ri.quantity,
+                    carbs: f.carbs * ri.quantity,
+                };
+            });
 
             const totalMacros = ingredients.reduce((acc: any, curr: any) => ({
                 calories: acc.calories + curr.calories,
@@ -92,67 +195,15 @@ export const recipeService = {
         if (recipeError) throw recipeError;
 
         // 2. Create Recipe Items
-        // Warning: Ingredient Foods must exist in the 'Food' table first. 
-        // If they are "Manual" or from "AI" but not saved, we might have an issue.
-        // For now, let's assume we only add "Saved Foods" or we auto-save them.
-        // simpler strategy: If ingredient has no ID, we skip it or error?
-        // Correct strategy: The User *selects* foods from the Search (which pulls from DB/AI).
-        // If it's from AI, it might not be in the DB yet.
-        // We should probably ensure all ingredients are saved to DB first.
+        const itemsToInsert = await buildRecipeItems(recipeData.id, userId, ingredients);
 
-        const itemsToInsert = [];
-        for (const ing of ingredients) {
-            let foodId = ing.id;
+        if (itemsToInsert.length > 0) {
+            const { error: itemsError } = await supabase
+                .from('RecipeItem')
+                .insert(itemsToInsert);
 
-            // If ID looks like auto-generated (from local state) and not UUID, 
-            // OR if we just want to be safe, we should check if it exists in DB.
-            // Actually, if it came from "Unified Search", it has a real ID if it was from DB.
-            // If it was from AI, we need to save it to DB first (as a hidden/private food?) 
-            // OR we just create a "Food" entry for it right now.
-
-            // Let's try to treat 'id' as the truth. If it fails foreign key, we have a problem.
-            // For robustness: We will create a new 'Food' entry for every ingredient if it's not a valid UUID 
-            // or just assume the UI handles "adding to DB" before adding to recipe.
-            // Let's implemented the "Auto-Save Ingredient" logic here for robustness.
-
-            if (!foodId || foodId.length < 10) { // simple check for non-UUID
-                // Create Food entry on the fly
-                const { data: newFood, error: foodError } = await supabase
-                    .from('Food')
-                    .insert({
-                        id: uuidv4(),
-                        name: ing.name,
-                        calories: ing.calories / ing.quantity, // Base values
-                        protein: ing.protein / ing.quantity,
-                        fat: ing.fat / ing.quantity,
-                        carbs: ing.carbs / ing.quantity,
-                        servingSize: ing.unit,
-                        createdById: userId,
-                        isPublic: false
-                    })
-                    .select()
-                    .single();
-
-                if (foodError) {
-                    console.error("Failed to auto-save ingredient:", ing.name, foodError);
-                    continue;
-                }
-                foodId = newFood.id;
-            }
-
-            itemsToInsert.push({
-                id: uuidv4(),
-                recipeId: recipeData.id,
-                foodId: foodId,
-                quantity: ing.quantity
-            });
+            if (itemsError) throw itemsError;
         }
-
-        const { error: itemsError } = await supabase
-            .from('RecipeItem')
-            .insert(itemsToInsert);
-
-        if (itemsError) throw itemsError;
 
         return recipeData;
     },
@@ -172,42 +223,8 @@ export const recipeService = {
         // 2. Delete all existing RecipeItems
         await supabase.from('RecipeItem').delete().eq('recipeId', recipeId);
 
-        // 3. Re-insert ingredients (same auto-save logic as create)
-        const itemsToInsert = [];
-        for (const ing of ingredients) {
-            let foodId = ing.id;
-
-            if (!foodId || foodId.length < 10) {
-                const { data: newFood, error: foodError } = await supabase
-                    .from('Food')
-                    .insert({
-                        id: uuidv4(),
-                        name: ing.name,
-                        calories: ing.calories / ing.quantity,
-                        protein: ing.protein / ing.quantity,
-                        fat: ing.fat / ing.quantity,
-                        carbs: ing.carbs / ing.quantity,
-                        servingSize: ing.unit,
-                        createdById: userId,
-                        isPublic: false
-                    })
-                    .select()
-                    .single();
-
-                if (foodError) {
-                    console.error("Failed to auto-save ingredient:", ing.name, foodError);
-                    continue;
-                }
-                foodId = newFood.id;
-            }
-
-            itemsToInsert.push({
-                id: uuidv4(),
-                recipeId: recipeId,
-                foodId: foodId,
-                quantity: ing.quantity
-            });
-        }
+        // 3. Re-insert ingredients
+        const itemsToInsert = await buildRecipeItems(recipeId, userId, ingredients);
 
         if (itemsToInsert.length > 0) {
             const { error: itemsError } = await supabase

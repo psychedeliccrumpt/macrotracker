@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Check, X, Link as LinkIcon, Save, Share2 } from 'lucide-react';
-import { SearchResult, FoodItem } from '../types';
+import { SearchResult, FoodItem, Macros } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { foodService } from '../services/foodService';
 
@@ -10,16 +10,61 @@ interface EditorModalProps {
   onCancel: () => void;
 }
 
-const UNITS = ['g', 'ml', 'oz', 'cup', 'serving', 'piece'];
+const UNITS = ['serving', 'g', 'ml', 'oz'];
 
 const extractGrams = (str: string): number | null => {
   if (!str) return null;
-  const match = str.match(/(\d+(?:\.\d+)?)\s*(g|ml|oz)/i);
+  const match = str.match(/(\d+(?:\.\d+)?)\s*(g|ml|oz)\b/i);
   if (!match) return null;
   let val = parseFloat(match[1]);
   const unit = match[2].toLowerCase();
   if (unit === 'oz') val *= 28.35;
   return val;
+};
+
+// Units with a fixed gram equivalent (ml treated as g, as before)
+const MASS_UNIT_GRAMS: Record<string, number> = { g: 1, ml: 1, oz: 28.35 };
+const gramsForUnit = (u: string): number | null => MASS_UNIT_GRAMS[u.toLowerCase()] ?? null;
+
+// Parse "15 chips", "1 cup (240g)", "28g", "1/2 cup" into a quantity + unit
+const parseServingSize = (str?: string): { qty: number; unit: string } | null => {
+  if (!str) return null;
+  const m = str.trim().match(/^(\d+(?:\.\d+)?)(?:\s*\/\s*(\d+(?:\.\d+)?))?\s*([a-zA-Z]+)?/);
+  if (!m) return null;
+  let qty = parseFloat(m[1]);
+  if (m[2]) qty = qty / parseFloat(m[2]);
+  if (!(qty > 0)) return null;
+  return { qty, unit: (m[3] || 'serving').toLowerCase() };
+};
+
+const scaleMacros = (m: Macros, factor: number): Macros => ({
+  calories: m.calories * factor,
+  protein: m.protein * factor,
+  fat: m.fat * factor,
+  carbs: m.carbs * factor,
+});
+
+/**
+ * The single source of truth for all conversions: the nutrition label.
+ * `macros` are for ONE labeled serving, which is `labelQty` x `labelUnit`
+ * (e.g. 15 x "chips") and weighs `grams` (0 if unknown).
+ */
+interface LabelReference {
+  macros: Macros;
+  labelQty: number;
+  labelUnit: string;
+  grams: number;
+  servingSize: string;
+}
+
+/** How many labeled servings one `u` is worth, or null if `u` can't be converted. */
+const servingsPerUnit = (u: string, ref: LabelReference): number | null => {
+  const lu = u.toLowerCase();
+  if (lu === ref.labelUnit) return 1 / ref.labelQty;
+  if (lu === 'serving') return 1;
+  const g = gramsForUnit(lu);
+  if (g !== null && ref.grams > 0) return g / ref.grams;
+  return null;
 };
 
 const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel }) => {
@@ -29,99 +74,69 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
   const isExistingItem = 'id' in initialData;
   const isSavedInDB = (initialData as any).source === 'personal' || (initialData as any).source === 'community';
 
-  // 2. Extract Base Information (The Canonical "Label" Data)
-  // IMPORTANT: For existing FoodItems, the stored macros are ALREADY SCALED
-  // to the logged quantity. We need to normalize them back to "per 1 unit" values.
-  const baseInfo = useMemo(() => {
+  // 2. Build the label reference (macros for ONE labeled serving).
+  // Logged FoodItems store macros already scaled to the logged quantity/unit,
+  // so we convert them back using the label's serving size.
+  const ref: LabelReference = useMemo(() => {
     if (!isExistingItem) {
       const res = initialData as SearchResult;
+      const labelQty = res.quantity && res.quantity > 0 ? res.quantity : 1;
+      const labelUnit = (res.unit || 'serving').toLowerCase();
+      const unitGrams = gramsForUnit(labelUnit);
+      const grams =
+        res.servingWeight ||
+        extractGrams(res.servingSize) ||
+        (unitGrams ? unitGrams * labelQty : 0);
       return {
         macros: res.macros,
-        qty: res.quantity || 1,
-        unit: res.unit || 'serving',
-        weight: res.servingWeight || extractGrams(res.servingSize) || 0,
-        servingSize: res.servingSize
-      };
-    } else {
-      const item = initialData as FoodItem;
-      const storedQty = item.quantity || 1;
-      const storedUnit = (item.unit || 'serving').toLowerCase();
-      // Normalize: stored macros are for storedQty units, so per-unit = stored / storedQty
-      const perUnitMacros = {
-        calories: item.calories / storedQty,
-        protein: item.protein / storedQty,
-        fat: item.fat / storedQty,
-        carbs: item.carbs / storedQty
-      };
-
-      // Weight per 1 unit of the stored unit (in grams)
-      // This is crucial for macrosPerGram to work correctly
-      let weightPer1Unit = 0;
-      if (storedUnit === 'g' || storedUnit === 'ml') {
-        weightPer1Unit = 1; // 1g = 1 gram
-      } else if (storedUnit === 'oz') {
-        weightPer1Unit = 28.35;
-      } else if (item.servingWeight) {
-        // For 'serving', 'cup', 'piece' etc: use stored servingWeight
-        weightPer1Unit = item.servingWeight;
-      } else {
-        // Try to extract from servingSize string
-        weightPer1Unit = extractGrams(item.servingSize || '') || 0;
-      }
-
-      return {
-        macros: perUnitMacros,       // Now represents macros for 1 unit
-        qty: 1,                       // Base is always 1 unit after normalization
-        unit: item.unit || 'serving',
-        weight: weightPer1Unit,       // Grams per 1 unit of the stored unit
-        servingSize: item.servingSize || `1 ${item.unit}`,
-        originalQty: storedQty        // Keep track of original for initial display
+        labelQty,
+        labelUnit,
+        grams,
+        servingSize: res.servingSize || `${labelQty} ${labelUnit}`,
       };
     }
+
+    const item = initialData as FoodItem;
+    const storedQty = item.quantity > 0 ? item.quantity : 1;
+    const storedUnit = (item.unit || 'serving').toLowerCase();
+    const storedMacros: Macros = { calories: item.calories, protein: item.protein, fat: item.fat, carbs: item.carbs };
+
+    const parsed = parseServingSize(item.servingSize);
+    const labelQty = parsed?.qty || 1;
+    const labelUnit = parsed?.unit || 'serving';
+    const unitGrams = gramsForUnit(labelUnit);
+    // Prefer grams written in the label text: older edits could overwrite
+    // servingWeight with a per-gram/per-oz weight instead of the serving weight.
+    const grams =
+      extractGrams(item.servingSize || '') ||
+      item.servingWeight ||
+      (unitGrams ? unitGrams * labelQty : 0);
+    const servingSize = item.servingSize || `${labelQty} ${labelUnit}`;
+
+    const partial = { macros: storedMacros, labelQty, labelUnit, grams, servingSize };
+    const spu = servingsPerUnit(storedUnit, partial);
+    if (spu && storedQty * spu > 0) {
+      return { ...partial, macros: scaleMacros(storedMacros, 1 / (storedQty * spu)) };
+    }
+    // Stored unit can't be related to the label: use 1 stored unit as the reference.
+    return {
+      macros: scaleMacros(storedMacros, 1 / storedQty),
+      labelQty: 1,
+      labelUnit: storedUnit,
+      grams: 0,
+      servingSize,
+    };
   }, [initialData, isExistingItem]);
 
-  // 3. Conversion Math
-  const macrosPerGram = useMemo(() => {
-    // For gram-based units: macros are per 1 unit, and weight is grams per 1 unit
-    if (baseInfo.weight > 0 && baseInfo.qty > 0) {
-      const gramsPerBaseUnit = baseInfo.weight / baseInfo.qty;
-      return {
-        calories: baseInfo.macros.calories / gramsPerBaseUnit,
-        protein: baseInfo.macros.protein / gramsPerBaseUnit,
-        fat: baseInfo.macros.fat / gramsPerBaseUnit,
-        carbs: baseInfo.macros.carbs / gramsPerBaseUnit,
-      };
-    }
-    return null;
-  }, [baseInfo]);
-
-  const macrosPerBaseUnit = useMemo(() => {
-    return {
-      calories: baseInfo.macros.calories / baseInfo.qty,
-      protein: baseInfo.macros.protein / baseInfo.qty,
-      fat: baseInfo.macros.fat / baseInfo.qty,
-      carbs: baseInfo.macros.carbs / baseInfo.qty,
-    };
-  }, [baseInfo]);
-
-  const getGramsPerUnit = (u: string) => {
-    const lowerU = u.toLowerCase();
-    if (lowerU === 'g' || lowerU === 'ml') return 1;
-    if (lowerU === 'oz') return 28.35;
-    if (lowerU === 'serving' && baseInfo.weight > 0) return baseInfo.weight;
-    if (lowerU === baseInfo.unit.toLowerCase() && baseInfo.weight > 0) {
-      return baseInfo.weight / baseInfo.qty;
-    }
-    if ((lowerU === 'piece' || lowerU === 'piece') && baseInfo.weight > 0) {
-      return baseInfo.weight / baseInfo.qty;
-    }
-    return null;
-  };
+  // 3. Units the user can pick: only ones we can actually convert.
+  const initialUnit = isExistingItem
+    ? ((initialData as FoodItem).unit || 'serving').toLowerCase()
+    : ref.labelUnit;
 
   // 4. Component State
-  const [unit, setUnit] = useState<string>(baseInfo.unit);
+  const [unit, setUnit] = useState<string>(initialUnit);
   const [inputQty, setInputQty] = useState<string>(
-    isExistingItem ? ((initialData as FoodItem).quantity || 1).toString() : baseInfo.qty.toString()
+    isExistingItem ? ((initialData as FoodItem).quantity || 1).toString() : ref.labelQty.toString()
   );
   const [isPublic, setIsPublic] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -130,38 +145,28 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
   const [editedName, setEditedName] = useState(initialData.name);
   const [editedBrand, setEditedBrand] = useState((initialData as any).brand || '');
 
+  const unitOptions = useMemo(
+    () =>
+      Array.from(new Set([ref.labelUnit, ...UNITS, unit])).filter(
+        u => u === unit || servingsPerUnit(u, ref) !== null
+      ),
+    [ref, unit]
+  );
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // 5. Calculate Current Macros
+  // 5. Calculate Current Macros: quantity -> number of labeled servings -> macros
   const currentMacros = useMemo(() => {
     const qty = parseFloat(inputQty) || 0;
-
-    // Exact match for base serving avoids rounding errors
-    if ((unit.toLowerCase() === baseInfo.unit.toLowerCase() || unit === 'serving') && qty === baseInfo.qty) {
-      return baseInfo.macros;
-    }
-    if (unit === 'serving' && qty === 1) {
-      return baseInfo.macros;
-    }
-
-    const gPerUnit = getGramsPerUnit(unit);
-    if (gPerUnit && macrosPerGram) {
-      const totalGrams = qty * gPerUnit;
-      return {
-        calories: Math.round(macrosPerGram.calories * totalGrams),
-        protein: Math.round(macrosPerGram.protein * totalGrams * 10) / 10,
-        fat: Math.round(macrosPerGram.fat * totalGrams * 10) / 10,
-        carbs: Math.round(macrosPerGram.carbs * totalGrams * 10) / 10,
-      };
-    }
-
+    const servings = qty * (servingsPerUnit(unit, ref) ?? 0);
+    const m = scaleMacros(ref.macros, servings);
     return {
-      calories: Math.round(macrosPerBaseUnit.calories * qty),
-      protein: Math.round(macrosPerBaseUnit.protein * qty * 10) / 10,
-      fat: Math.round(macrosPerBaseUnit.fat * qty * 10) / 10,
-      carbs: Math.round(macrosPerBaseUnit.carbs * qty * 10) / 10,
+      calories: Math.round(m.calories),
+      protein: Math.round(m.protein * 10) / 10,
+      fat: Math.round(m.fat * 10) / 10,
+      carbs: Math.round(m.carbs * 10) / 10,
     };
-  }, [inputQty, unit, baseInfo, macrosPerGram, macrosPerBaseUnit]);
+  }, [inputQty, unit, ref]);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -174,11 +179,11 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
     const qty = parseFloat(inputQty) || 0;
     let newQty = qty;
 
-    const currentGramsPerUnit = getGramsPerUnit(unit);
-    const targetGramsPerUnit = getGramsPerUnit(newUnit);
+    const fromSpu = servingsPerUnit(unit, ref);
+    const toSpu = servingsPerUnit(newUnit, ref);
 
-    if (currentGramsPerUnit && targetGramsPerUnit) {
-      const converted = (qty * currentGramsPerUnit) / targetGramsPerUnit;
+    if (fromSpu && toSpu) {
+      const converted = (qty * fromSpu) / toSpu;
       // Round smartly to handle floating point noise
       newQty = Math.abs(Math.round(converted) - converted) < 0.0001 ? Math.round(converted) : parseFloat(converted.toFixed(2));
     }
@@ -191,18 +196,18 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
     if (!user) return;
     setIsSaving(true);
     try {
-      // THE DESIGN CHOICE: Always save the CANONICAL label data
+      // Always save the CANONICAL label data
       const foodToSave = {
         name: editedName,
         brand: editedBrand,
-        calories: baseInfo.macros.calories,
-        protein: baseInfo.macros.protein,
-        fat: baseInfo.macros.fat,
-        carbs: baseInfo.macros.carbs,
-        servingSize: baseInfo.servingSize,
-        quantity: baseInfo.qty,
-        unit: baseInfo.unit,
-        servingWeight: baseInfo.weight > 0 ? baseInfo.weight : null
+        calories: ref.macros.calories,
+        protein: ref.macros.protein,
+        fat: ref.macros.fat,
+        carbs: ref.macros.carbs,
+        servingSize: ref.servingSize,
+        quantity: ref.labelQty,
+        unit: ref.labelUnit,
+        servingWeight: ref.grams > 0 ? ref.grams : null
       };
 
       const newItem = await foodService.createFood(foodToSave, user.id, isPublic);
@@ -226,9 +231,10 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
       ...currentMacros,
       quantity: parseFloat(inputQty) || 0,
       unit: unit,
-      servingSize: baseInfo.servingSize,
+      servingSize: ref.servingSize,
       source: isExistingItem ? (initialData as FoodItem).source : 'manual',
-      servingWeight: baseInfo.weight
+      // Always the weight of ONE labeled serving, so re-opening the log converts correctly
+      servingWeight: ref.grams > 0 ? ref.grams : undefined
     } as any);
   };
 
@@ -265,10 +271,10 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
                 className="w-full text-[clamp(1.5rem,7vw,2.25rem)] font-black text-secondary uppercase leading-tight bg-transparent outline-none resize-none overflow-hidden placeholder:text-secondary/30"
                 style={{ minHeight: '1.2em' }}
               />
-              {baseInfo.servingSize && (
+              {ref.servingSize && (
                 <div className="mt-2">
                   <p className="text-secondary font-mono text-[10px] font-black bg-highlight inline-block px-2 py-0.5 border-2 border-secondary uppercase mb-1">
-                    Standard Serving: {baseInfo.servingSize}
+                    Standard Serving: {ref.servingSize}
                   </p>
 
                   {/* DATA SOURCE LINKS - Only for AI Search, not for scans */}
@@ -339,7 +345,7 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
                 className="bg-highlight border-2 border-secondary px-2 py-1 text-xs font-black uppercase outline-none focus:bg-white transition-colors"
                 style={{ maxWidth: '140px' }}
               >
-                {Array.from(new Set([...UNITS, unit, baseInfo.unit])).filter(Boolean).map(u => (
+                {unitOptions.map(u => (
                   <option key={u} value={u} className="uppercase">{u}</option>
                 ))}
               </select>
