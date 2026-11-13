@@ -12,21 +12,31 @@ export const foodService = {
         try {
             const results: SearchResult[] = [];
 
-            // 1. Search in Supabase (Food table)
-            let queryBuilder = supabase
-                .from('Food')
-                .select('*')
-                .ilike('name', `%${query}%`)
-                .limit(10);
+            // 1. Search in Supabase (Food table), matching the name OR the brand
+            //    (e.g. "nurri" should find Nurri's "Vanilla Milk Shake").
+            //    Two simple queries merged, so the visibility filter below applies to both.
+            const searchBy = (column: 'name' | 'brand') => {
+                let qb = supabase
+                    .from('Food')
+                    .select('*')
+                    .ilike(column, `%${query}%`)
+                    .limit(10);
 
-            // Filter: Public OR Created by Me
-            if (userId) {
-                queryBuilder = queryBuilder.or(`isPublic.eq.true,createdById.eq.${userId}`);
-            } else {
-                queryBuilder = queryBuilder.eq('isPublic', true);
-            }
+                // Filter: Public OR Created by Me
+                if (userId) {
+                    qb = qb.or(`isPublic.eq.true,createdById.eq.${userId}`);
+                } else {
+                    qb = qb.eq('isPublic', true);
+                }
+                return qb;
+            };
 
-            const { data, error } = await queryBuilder;
+            const [byName, byBrand] = await Promise.all([searchBy('name'), searchBy('brand')]);
+            const error = byName.error || byBrand.error;
+            const seen = new Set<string>();
+            const data = [...(byName.data || []), ...(byBrand.data || [])]
+                .filter((item: any) => (seen.has(item.id) ? false : (seen.add(item.id), true)))
+                .slice(0, 10);
 
             if (error) {
                 console.error('Supabase search error:', error);
