@@ -1,5 +1,5 @@
-import { requireUser, json, errorResponse, HttpError } from '../server/auth';
-import { transcribeAudio } from '../server/whisper';
+import { requireUser, json, errorResponse, HttpError } from '../server/auth.js';
+import { transcribeAudio } from '../server/whisper.js';
 
 const MAX_AUDIO_BASE64 = 4_000_000; // stays under Vercel's 4.5 MB request limit (~3 min of voice)
 

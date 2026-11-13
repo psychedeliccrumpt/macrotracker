@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { HttpError } from './auth';
+import { HttpError } from './auth.js';
 
 // Server-only key: never prefix with VITE_, or Vite will ship it to the browser.
 const getClient = () => {

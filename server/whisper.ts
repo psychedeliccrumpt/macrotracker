@@ -1,4 +1,4 @@
-import { HttpError } from './auth';
+import { HttpError } from './auth.js';
 
 const WHISPER_PROMPT =
   'This is a voice note logging food for a diet tracker. Common terms: calories, macros, protein, carbs, fat, grams, ounces, serving, cup, bowl, breakfast, lunch, dinner, snack. 常见词汇：吃，卡路里，蛋白质，碳水，脂肪，克，份，早饭，午饭，晚饭，零食。';

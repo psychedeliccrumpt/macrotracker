@@ -1,5 +1,5 @@
-import { requireUser, json, errorResponse, HttpError } from '../server/auth';
-import { analyzeFoodLabel, searchFoodNutrition, analyzeNaturalLanguageMeal } from '../server/gemini';
+import { requireUser, json, errorResponse, HttpError } from '../server/auth.js';
+import { analyzeFoodLabel, searchFoodNutrition, analyzeNaturalLanguageMeal } from '../server/gemini.js';
 
 const MAX_TEXT = 2000;
 const MAX_IMAGE_BASE64 = 4_000_000; // stays under Vercel's 4.5 MB request limit
