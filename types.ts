@@ -88,5 +88,42 @@ export interface UserProfile {
   updatedAt?: string;
 }
 
-export type AppView = 'dashboard' | 'log' | 'calendar' | 'my' | 'scan' | 'search' | 'recipe' | 'ai-log';
+export type AppView = 'dashboard' | 'log' | 'coach' | 'calendar' | 'my' | 'scan' | 'search' | 'recipe' | 'ai-log';
 export type MyTab = 'trends' | 'calculator' | 'goals';
+
+// ---- AI Coach ----
+export type TrainingPhase = 'cut' | 'bulk' | 'maintenance' | 'deload';
+
+export interface CoachProfile {
+  userId: string;
+  goals?: string | null;
+  trainingSchedule?: string | null;
+  experience?: string | null;
+  injuries?: string | null;
+  foodPreferences?: string | null;
+  notes?: string | null;
+  trainingPhase?: TrainingPhase | null;
+  phaseStart?: string | null; // YYYY-MM-DD
+  phaseEnd?: string | null; // YYYY-MM-DD
+  trackCycle?: boolean;
+  lastPeriodStart?: string | null; // YYYY-MM-DD
+  cycleLength?: number | null;
+  updatedAt?: string;
+}
+
+export interface CoachMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+}
+
+export interface CoachPlan {
+  id: string;
+  title: string;
+  type: 'workout' | 'meal' | 'other';
+  content: string;
+  status: 'active' | 'archived';
+  createdAt: string;
+  updatedAt: string;
+}

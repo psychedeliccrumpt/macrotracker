@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'; // v1.1.0 build trigger
-import { Calendar as CalendarIcon, LayoutGrid, CircleUser, NotebookPen } from 'lucide-react';
+import { Calendar as CalendarIcon, LayoutGrid, CircleUser, NotebookPen, MessageCircle } from 'lucide-react';
 import { AppView, FoodItem, Recipe, SearchResult, Macros, UserProfile, WeightLog, DayNote } from './types';
 import Scanner from './components/Scanner';
 import Search from './components/Search';
@@ -12,6 +12,7 @@ import WeightLogModal from './components/WeightLogModal';
 import Dashboard from './components/Dashboard';
 import FoodLogHub from './components/FoodLogHub';
 import Calendar from './components/Calendar';
+import Coach from './components/Coach';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Auth } from './components/Auth';
 import { userService } from './services/userService';
@@ -297,6 +298,8 @@ const AuthenticatedApp: React.FC = () => {
           }}
           onClose={() => setView('log')}
         />;
+      case 'coach':
+        return <Coach logs={logs} weightLogs={weightLogs} profile={profile} />;
       case 'calendar':
         return <Calendar
           logs={logs}
@@ -421,11 +424,12 @@ const AuthenticatedApp: React.FC = () => {
         />
       )}
 
-      {/* Standard Bottom Navigation Bar (4 items) */}
+      {/* Standard Bottom Navigation Bar (5 items) */}
       {view !== 'scan' && (
-        <div className="h-[80px] bg-white border-t-3 border-secondary grid grid-cols-4 relative z-30 shadow-[0px_-4px_0px_0px_rgba(0,0,0,0.05)]">
+        <div className="h-[80px] bg-white border-t-3 border-secondary grid grid-cols-5 relative z-30 shadow-[0px_-4px_0px_0px_rgba(0,0,0,0.05)]">
           <NavButton active={view === 'dashboard'} onClick={() => setView('dashboard')} icon={LayoutGrid} label="Dash" />
           <NavButton active={view === 'log' || view === 'search' || view === 'recipe'} onClick={() => setView('log')} icon={NotebookPen} label="Log" />
+          <NavButton active={view === 'coach'} onClick={() => setView('coach')} icon={MessageCircle} label="Coach" />
           <NavButton active={view === 'calendar'} onClick={() => setView('calendar')} icon={CalendarIcon} label="History" />
           <NavButton active={view === 'my'} onClick={() => setView('my')} icon={CircleUser} label="My" />
         </div>
