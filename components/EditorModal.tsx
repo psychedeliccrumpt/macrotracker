@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Check, X, Link as LinkIcon, Save, Share2 } from 'lucide-react';
+import { Check, X, Link as LinkIcon, Save, Share2, Loader2 } from 'lucide-react';
 import { SearchResult, FoodItem, Macros } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { foodService } from '../services/foodService';
 
 interface EditorModalProps {
   initialData: SearchResult | FoodItem;
-  onSave: (item: Omit<FoodItem, 'timestamp'>) => void;
+  onSave: (item: Omit<FoodItem, 'timestamp'>) => void | Promise<void>;
   onCancel: () => void;
 }
 
@@ -140,6 +140,7 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
   );
   const [isPublic, setIsPublic] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLogging, setIsLogging] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [createdFoodId, setCreatedFoodId] = useState<string | null>(null);
   const [editedName, setEditedName] = useState(initialData.name);
@@ -222,20 +223,49 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
     }
   };
 
-  const handleLog = () => {
+  // Mobile: if the quantity keyboard is open, the first tap closes it and the
+  // page shifts before the finger lifts, so the browser drops the click.
+  // Touch events stay on the element where the touch started, so handle a
+  // short tap here directly (and preventDefault so the click doesn't repeat it).
+  const logTouchStart = useRef<{ x: number; y: number } | null>(null);
+  const handleLogTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    logTouchStart.current = t ? { x: t.clientX, y: t.clientY } : null;
+  };
+  const handleLogTouchEnd = (e: React.TouchEvent) => {
+    const start = logTouchStart.current;
+    logTouchStart.current = null;
+    const t = e.changedTouches[0];
+    if (!start || !t) return;
+    // A finger that moved is a scroll, not a tap
+    if (Math.hypot(t.clientX - start.x, t.clientY - start.y) > 10) return;
+    e.preventDefault();
+    handleLog();
+  };
+
+  // Saving takes a network round trip before the modal closes. Show progress
+  // and ignore extra taps so one tap logs exactly once.
+  const handleLog = async () => {
+    if (isLogging) return;
+    setIsLogging(true);
     const effectiveId = isExistingItem ? (initialData as FoodItem).id : (createdFoodId || '');
-    onSave({
-      id: effectiveId,
-      name: editedName,
-      brand: editedBrand,
-      ...currentMacros,
-      quantity: parseFloat(inputQty) || 0,
-      unit: unit,
-      servingSize: ref.servingSize,
-      source: isExistingItem ? (initialData as FoodItem).source : 'manual',
-      // Always the weight of ONE labeled serving, so re-opening the log converts correctly
-      servingWeight: ref.grams > 0 ? ref.grams : undefined
-    } as any);
+    try {
+      await onSave({
+        id: effectiveId,
+        name: editedName,
+        brand: editedBrand,
+        ...currentMacros,
+        quantity: parseFloat(inputQty) || 0,
+        unit: unit,
+        servingSize: ref.servingSize,
+        source: isExistingItem ? (initialData as FoodItem).source : 'manual',
+        // Always the weight of ONE labeled serving, so re-opening the log converts correctly
+        servingWeight: ref.grams > 0 ? ref.grams : undefined
+      } as any);
+    } finally {
+      // On success the modal unmounts; on failure the button works again.
+      setIsLogging(false);
+    }
   };
 
   const getFontSizeClass = (val: number, suffix = '') => {
@@ -404,10 +434,14 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
 
           <button
             onClick={handleLog}
-            className="w-full py-5 bg-secondary text-white font-black uppercase tracking-widest text-xl border-3 border-secondary hover:bg-primary hover:text-white transition-colors flex items-center justify-center gap-3 shadow-neo active:translate-x-[4px] active:translate-y-[4px] active:shadow-none"
+            onTouchStart={handleLogTouchStart}
+            onTouchEnd={handleLogTouchEnd}
+            disabled={isLogging}
+            aria-busy={isLogging}
+            className="w-full py-5 bg-secondary text-white font-black uppercase tracking-widest text-xl border-3 border-secondary hover:bg-primary hover:text-white transition-colors flex items-center justify-center gap-3 shadow-neo active:translate-x-[4px] active:translate-y-[4px] active:shadow-none disabled:bg-primary disabled:cursor-wait disabled:translate-x-[4px] disabled:translate-y-[4px] disabled:shadow-none"
           >
-            <Check size={28} strokeWidth={4} />
-            {isExistingItem ? 'UPDATE LOG' : 'LOG FOOD'}
+            {isLogging ? <Loader2 className="animate-spin" size={28} strokeWidth={4} /> : <Check size={28} strokeWidth={4} />}
+            {isLogging ? (isExistingItem ? 'UPDATING...' : 'LOGGING...') : (isExistingItem ? 'UPDATE LOG' : 'LOG FOOD')}
           </button>
         </div>
       </div>

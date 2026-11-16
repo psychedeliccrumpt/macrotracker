@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Search as SearchIcon, Loader2, ArrowLeft, ArrowRight, User, Globe, Sparkles, CookingPot, Database } from 'lucide-react';
+import { Search as SearchIcon, Loader2, ArrowLeft, ArrowRight, User, Globe, Sparkles, CookingPot, Database, X } from 'lucide-react';
 import { foodService } from '../services/foodService';
 import { SearchResult } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -52,6 +52,7 @@ const Search: React.FC<SearchProps> = ({ onSelect, onBack }) => {
 
   // Ignore responses from an older search if the user searched again
   const requestId = useRef(0);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const changeMode = (m: SearchMode) => {
     setMode(m);
@@ -120,6 +121,24 @@ const Search: React.FC<SearchProps> = ({ onSelect, onBack }) => {
   };
 
   const loading = dbLoading || onlineLoading;
+
+  // X button: stop any running search (its late response is ignored via
+  // requestId) and go back to an empty search box.
+  const cancelSearch = () => {
+    requestId.current++;
+    setQuery('');
+    setDbResults([]);
+    setOnlineResults([]);
+    setDbError(null);
+    setOnlineError(null);
+    setDbLoading(false);
+    setOnlineLoading(false);
+    setSearchedQuery(null);
+    setSearchedMode(null);
+    inputRef.current?.focus();
+  };
+
+  const showClear = loading || query.length > 0 || searchedMode !== null;
 
   const getSourceIcon = (source?: string) => {
     switch (source) {
@@ -210,13 +229,25 @@ const Search: React.FC<SearchProps> = ({ onSelect, onBack }) => {
 
       <form onSubmit={handleSubmit} className="relative mb-4 group">
         <input
+          ref={inputRef}
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="SEARCH FOOD..."
-          className="w-full pl-12 pr-16 py-5 border-3 border-secondary bg-white text-xl font-bold placeholder:text-gray-300 focus:bg-highlight focus:placeholder:text-secondary/50 outline-none shadow-neo transition-colors"
+          className="w-full pl-12 pr-32 py-5 border-3 border-secondary bg-white text-xl font-bold placeholder:text-gray-300 focus:bg-highlight focus:placeholder:text-secondary/50 outline-none shadow-neo transition-colors"
         />
         <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary" size={24} strokeWidth={3} />
+        {showClear && (
+          <button
+            type="button"
+            onClick={cancelSearch}
+            aria-label={loading ? 'Stop search' : 'Clear search'}
+            title={loading ? 'Stop search' : 'Clear search'}
+            className="absolute right-[4.75rem] top-1/2 -translate-y-1/2 p-1.5 text-secondary border-2 border-transparent hover:border-secondary hover:bg-white transition-colors"
+          >
+            <X size={22} strokeWidth={3} />
+          </button>
+        )}
         <button
           type="submit"
           disabled={loading || !query.trim()}

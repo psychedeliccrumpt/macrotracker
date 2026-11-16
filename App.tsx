@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'; // v1.1.0 build trigger
-import { Calendar as CalendarIcon, LayoutGrid, CircleUser, NotebookPen, MessageCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react'; // v1.1.0 build trigger
+import { Calendar as CalendarIcon, LayoutGrid, CircleUser, NotebookPen, MessageCircle, Check } from 'lucide-react';
 import { AppView, FoodItem, Recipe, SearchResult, Macros, UserProfile, WeightLog, DayNote } from './types';
 import Scanner from './components/Scanner';
 import Search from './components/Search';
@@ -48,6 +48,14 @@ const AuthenticatedApp: React.FC = () => {
   });
 
   const [tempScanResult, setTempScanResult] = useState<SearchResult | null>(null);
+  // Short "Logged" confirmation, since logging no longer jumps to the dashboard
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showToast = (msg: string) => {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 2000);
+  };
   const [editingItem, setEditingItem] = useState<FoodItem | null>(null);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [showWeightLog, setShowWeightLog] = useState(false);
@@ -140,7 +148,8 @@ const AuthenticatedApp: React.FC = () => {
       const newItem = await logService.create(user.id, { ...data, foodId: data.id }, logDate);
       setLogs(prev => [newItem, ...prev]);
       setTempScanResult(null);
-      setView('dashboard');
+      // Stay on the current page (e.g. search results) and confirm instead
+      showToast(`Logged ${data.name}`);
     } catch (e: any) {
       console.error('Failed to add log', e);
       alert(`Failed to save log: ${e.message || 'Unknown error'}`);
@@ -330,8 +339,9 @@ const AuthenticatedApp: React.FC = () => {
       case 'search':
         return <Search
           onSelect={(result) => {
+            // Keep Search mounted behind the editor: closing the editor returns
+            // to the same results; logging still goes to the dashboard (addLog).
             setTempScanResult(result);
-            setView('dashboard');
           }}
           onBack={() => setView('log')}
         />;
@@ -410,6 +420,17 @@ const AuthenticatedApp: React.FC = () => {
             setEditingItem(null);
           }}
         />
+      )}
+
+      {/* Logged confirmation */}
+      {toast && (
+        <div
+          role="status"
+          className="absolute left-4 right-4 bottom-[96px] z-40 flex items-center gap-2 px-4 py-3 bg-secondary text-white border-3 border-secondary shadow-neo font-black uppercase text-sm tracking-wide pointer-events-none"
+        >
+          <Check size={18} strokeWidth={4} className="shrink-0" />
+          <span className="truncate">{toast}</span>
+        </div>
       )}
 
       {/* Global Quick Add Modal */}
