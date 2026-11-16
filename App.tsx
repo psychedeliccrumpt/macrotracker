@@ -339,12 +339,22 @@ const AuthenticatedApp: React.FC = () => {
         return <RecipeBuilder
           // savedRecipes prop is removed, component fetches its own data
           onLogRecipe={(r) => {
-            addLog({
+            // totalMacros is the whole recipe: log one serving's worth and let
+            // the editor scale it (same as picking the recipe from Search).
+            const servings = r.servings > 0 ? r.servings : 1;
+            setTempScanResult({
               name: r.name,
-              ...r.totalMacros,
+              macros: {
+                calories: r.totalMacros.calories / servings,
+                protein: r.totalMacros.protein / servings,
+                fat: r.totalMacros.fat / servings,
+                carbs: r.totalMacros.carbs / servings,
+              },
+              servingSize: `1 serving (of ${servings})`,
               quantity: 1,
               unit: 'serving',
-              source: 'recipe'
+              brand: 'My Recipe',
+              source: 'recipe',
             });
           }}
         />;
