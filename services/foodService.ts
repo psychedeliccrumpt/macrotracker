@@ -10,31 +10,32 @@ export const foodService = {
     async searchDatabase(query: string, userId?: string): Promise<SearchResult[]> {
         const results: SearchResult[] = [];
 
-        // 1. Search in Supabase (Food table), matching the name OR the brand
-        //    (e.g. "nurri" should find Nurri's "Vanilla Milk Shake").
-        //    Two simple queries merged, so the visibility filter below applies to both.
-        const searchBy = (column: 'name' | 'brand') => {
-            let qb = supabase
-                .from('Food')
-                .select('*')
-                .ilike(column, `%${query}%`)
-                .limit(10);
+        // Words of the query: "fairlife chocolate milk" -> ["fairlife", "chocolate", "milk"].
+        // Commas/parentheses are stripped because PostgREST filters use them as syntax.
+        const words = query.toLowerCase().replace(/[,()%*\\]/g, ' ').split(/\s+/).filter(Boolean);
+        if (words.length === 0) return results;
 
-            // Filter: Public OR Created by Me
-            if (userId) {
-                qb = qb.or(`isPublic.eq.true,createdById.eq.${userId}`);
-            } else {
-                qb = qb.eq('isPublic', true);
+        // 1. Foods. Preferred: the search_foods function (update_schema_v6_search.sql),
+        //    which matches every word against brand + name in any order and tolerates typos.
+        let data: any[] | null = null;
+        let error: { message: string } | null = null;
+        const rpc = await supabase.rpc('search_foods', { q: words.join(' '), max_results: 10 });
+        if (!rpc.error) {
+            data = rpc.data as any[];
+        } else {
+            // Function not installed yet (or failed): every word must appear in the
+            // name or the brand, in any order. No typo tolerance in this fallback.
+            if (rpc.error.code !== 'PGRST202' && rpc.error.code !== '42883') {
+                console.warn('search_foods failed, using basic search:', rpc.error.message);
             }
-            return qb;
-        };
-
-        const [byName, byBrand] = await Promise.all([searchBy('name'), searchBy('brand')]);
-        const error = byName.error || byBrand.error;
-        const seen = new Set<string>();
-        const data = [...(byName.data || []), ...(byBrand.data || [])]
-            .filter((item: any) => (seen.has(item.id) ? false : (seen.add(item.id), true)))
-            .slice(0, 10);
+            let qb = supabase.from('Food').select('*');
+            for (const w of words) qb = qb.or(`name.ilike.%${w}%,brand.ilike.%${w}%`);
+            // Filter: Public OR Created by Me (chained .or() filters are ANDed)
+            qb = userId ? qb.or(`isPublic.eq.true,createdById.eq.${userId}`) : qb.eq('isPublic', true);
+            const res = await qb.limit(10);
+            data = res.data;
+            error = res.error;
+        }
 
         if (error) {
             console.error('Supabase search error:', error);
@@ -62,7 +63,7 @@ export const foodService = {
 
         // 2. Search in Recipes (user's saved recipes)
         if (userId) {
-            const { data: recipeData, error: recipeError } = await supabase
+            let recipeQuery = supabase
                 .from('Recipe')
                 .select(`
                     id, name, servings,
@@ -71,9 +72,10 @@ export const foodService = {
                         Food ( calories, protein, fat, carbs )
                     )
                 `)
-                .eq('createdById', userId)
-                .ilike('name', `%${query}%`)
-                .limit(5);
+                .eq('createdById', userId);
+            // Every word must appear in the recipe name, in any order
+            for (const w of words) recipeQuery = recipeQuery.ilike('name', `%${w}%`);
+            const { data: recipeData, error: recipeError } = await recipeQuery.limit(5);
 
             if (!recipeError && recipeData && recipeData.length > 0) {
                 const recipeResults: SearchResult[] = recipeData.map((r: any) => {
