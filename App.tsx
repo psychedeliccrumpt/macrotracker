@@ -13,6 +13,7 @@ import Dashboard from './components/Dashboard';
 import FoodLogHub from './components/FoodLogHub';
 import Calendar from './components/Calendar';
 import Coach from './components/Coach';
+import CopyDay from './components/CopyDay';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Auth } from './components/Auth';
 import { userService } from './services/userService';
@@ -182,6 +183,19 @@ const AuthenticatedApp: React.FC = () => {
     }
   };
 
+  const copyLogs = async (items: FoodItem[]) => {
+    if (!user) return;
+    try {
+      const newItems = await logService.createMany(user.id, items, getEffectiveLogDate());
+      setLogs(prev => [...newItems, ...prev]);
+      showToast(`Logged ${newItems.length} item${newItems.length === 1 ? '' : 's'}`);
+      setView('dashboard');
+    } catch (e: any) {
+      console.error('Failed to copy logs', e);
+      alert(`Failed to copy logs: ${e.message || 'Unknown error'}`);
+    }
+  };
+
   const addWeightLog = async (weight: number) => {
     if (!user) return;
     try {
@@ -293,6 +307,14 @@ const AuthenticatedApp: React.FC = () => {
           onLogWeight={() => setShowWeightLog(true)}
           onScan={() => setView('scan')}
           onAI={() => setView('ai-log')}
+          onCopyDay={() => setView('copy-day')}
+        />;
+      case 'copy-day':
+        return <CopyDay
+          logs={logs}
+          targetDate={selectedDate}
+          onBack={() => setView('log')}
+          onCopy={copyLogs}
         />;
       case 'ai-log':
         return <AILogger
@@ -459,7 +481,7 @@ const AuthenticatedApp: React.FC = () => {
       {view !== 'scan' && (
         <div className="h-[80px] bg-white border-t-3 border-secondary grid grid-cols-5 relative z-30 shadow-[0px_-4px_0px_0px_rgba(0,0,0,0.05)]">
           <NavButton active={view === 'dashboard'} onClick={() => setView('dashboard')} icon={LayoutGrid} label="Dash" />
-          <NavButton active={view === 'log' || view === 'search' || view === 'recipe'} onClick={() => setView('log')} icon={NotebookPen} label="Log" />
+          <NavButton active={view === 'log' || view === 'search' || view === 'recipe' || view === 'copy-day'} onClick={() => setView('log')} icon={NotebookPen} label="Log" />
           <NavButton active={view === 'coach'} onClick={() => setView('coach')} icon={MessageCircle} label="Coach" />
           <NavButton active={view === 'calendar'} onClick={() => setView('calendar')} icon={CalendarIcon} label="History" />
           <NavButton active={view === 'my'} onClick={() => setView('my')} icon={CircleUser} label="My" />

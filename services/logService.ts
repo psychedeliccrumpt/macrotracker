@@ -99,6 +99,54 @@ export const logService = {
     },
 
     /**
+     * Copy existing log entries to a new date in a single insert.
+     * Keeps each item's name, macros, portion, brand and source.
+     */
+    async createMany(userId: string, items: FoodItem[], date: Date): Promise<FoodItem[]> {
+        if (items.length === 0) return [];
+        const iso = date.toISOString();
+        const { data, error } = await supabase
+            .from('FoodLog')
+            .insert(items.map(item => ({
+                id: uuidv4(),
+                userId,
+                foodId: null,
+                name: item.name,
+                calories: item.calories,
+                protein: item.protein,
+                fat: item.fat,
+                carbs: item.carbs,
+                quantity: item.quantity,
+                unit: item.unit,
+                servingSize: item.servingSize,
+                servingWeight: item.servingWeight,
+                brand: item.brand,
+                source: item.source || 'manual',
+                date: iso,
+                mealType: 'snack',
+            })))
+            .select();
+
+        if (error) throw error;
+
+        return (data || []).map((log: any) => ({
+            id: log.id,
+            name: log.name,
+            calories: log.calories,
+            protein: log.protein,
+            fat: log.fat,
+            carbs: log.carbs,
+            quantity: log.quantity,
+            unit: log.unit,
+            servingSize: log.servingSize,
+            servingWeight: log.servingWeight,
+            brand: log.brand,
+            source: log.source,
+            timestamp: parseTimestamp(log.date),
+        } as FoodItem));
+    },
+
+    /**
      * Update a food log entry
      */
     async update(logId: string, updates: Partial<Omit<FoodItem, 'id' | 'timestamp'>>) {

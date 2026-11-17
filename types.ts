@@ -88,7 +88,7 @@ export interface UserProfile {
   updatedAt?: string;
 }
 
-export type AppView = 'dashboard' | 'log' | 'coach' | 'calendar' | 'my' | 'scan' | 'search' | 'recipe' | 'ai-log';
+export type AppView = 'dashboard' | 'log' | 'coach' | 'calendar' | 'my' | 'scan' | 'search' | 'recipe' | 'ai-log' | 'copy-day';
 export type MyTab = 'trends' | 'calculator' | 'goals';
 
 // ---- AI Coach ----

@@ -8,6 +8,10 @@ interface EditorModalProps {
   initialData: SearchResult | FoodItem;
   onSave: (item: Omit<FoodItem, 'timestamp'>) => void | Promise<void>;
   onCancel: () => void;
+  /** Overrides the main button text (e.g. "Use this amount"). */
+  saveLabel?: string;
+  /** Show the "Save to My Database" panel. Default true. */
+  allowSaveToDb?: boolean;
 }
 
 const UNITS = ['serving', 'g', 'ml', 'oz'];
@@ -67,7 +71,7 @@ const servingsPerUnit = (u: string, ref: LabelReference): number | null => {
   return null;
 };
 
-const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel }) => {
+const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel, saveLabel, allowSaveToDb = true }) => {
   const { user } = useAuth();
 
   // 1. Identify Data Source
@@ -403,7 +407,7 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
             </div>
           </div>
 
-          {!isSavedInDB && !savedSuccess && (
+          {allowSaveToDb && !isSavedInDB && !savedSuccess && (
             <div className="mb-4 p-4 border-3 border-secondary bg-blue-50">
               <div className="flex items-center justify-between mb-3">
                 <span className="font-bold text-sm uppercase text-secondary">Save to My Database?</span>
@@ -441,7 +445,7 @@ const EditorModal: React.FC<EditorModalProps> = ({ initialData, onSave, onCancel
             className="w-full py-5 bg-secondary text-white font-black uppercase tracking-widest text-xl border-3 border-secondary hover:bg-primary hover:text-white transition-colors flex items-center justify-center gap-3 shadow-neo active:translate-x-[4px] active:translate-y-[4px] active:shadow-none disabled:bg-primary disabled:cursor-wait disabled:translate-x-[4px] disabled:translate-y-[4px] disabled:shadow-none"
           >
             {isLogging ? <Loader2 className="animate-spin" size={28} strokeWidth={4} /> : <Check size={28} strokeWidth={4} />}
-            {isLogging ? (isExistingItem ? 'UPDATING...' : 'LOGGING...') : (isExistingItem ? 'UPDATE LOG' : 'LOG FOOD')}
+            {isLogging ? (isExistingItem ? 'UPDATING...' : 'LOGGING...') : (saveLabel ?? (isExistingItem ? 'UPDATE LOG' : 'LOG FOOD'))}
           </button>
         </div>
       </div>

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Search, Zap, CookingPot, Scale, ScanLine, Sparkles } from 'lucide-react';
+import { Search, Zap, CookingPot, Scale, ScanLine, Sparkles, CopyPlus } from 'lucide-react';
 
 interface FoodLogHubProps {
   onQuickAdd: () => void;
@@ -9,9 +9,10 @@ interface FoodLogHubProps {
   onLogWeight: () => void;
   onScan: () => void;
   onAI: () => void;
+  onCopyDay: () => void;
 }
 
-const FoodLogHub: React.FC<FoodLogHubProps> = ({ onQuickAdd, onSearch, onRecipe, onLogWeight, onScan, onAI }) => {
+const FoodLogHub: React.FC<FoodLogHubProps> = ({ onQuickAdd, onSearch, onRecipe, onLogWeight, onScan, onAI, onCopyDay }) => {
   return (
     <div className="h-full bg-background flex flex-col p-6 overflow-y-auto pb-32">
       <div className="mb-8 border-b-3 border-secondary pb-4">
@@ -74,6 +75,20 @@ const FoodLogHub: React.FC<FoodLogHubProps> = ({ onQuickAdd, onSearch, onRecipe,
           <div>
             <h2 className="text-xl font-black uppercase text-secondary">Quick Add</h2>
             <p className="text-gray-500 font-bold uppercase text-[10px] tracking-wide mt-1">Manual Entry</p>
+          </div>
+        </button>
+
+        {/* Copy a past day */}
+        <button
+          onClick={onCopyDay}
+          className="col-span-2 group relative bg-surface border-3 border-secondary p-6 shadow-neo hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all active:bg-gray-50 text-left flex items-center gap-4"
+        >
+          <div className="bg-highlight p-3 border-3 border-secondary text-secondary shadow-sm shrink-0">
+            <CopyPlus size={24} strokeWidth={3} />
+          </div>
+          <div>
+            <h2 className="text-xl font-black uppercase text-secondary">Copy Past Day</h2>
+            <p className="text-gray-500 font-bold uppercase text-[10px] tracking-wide mt-1">Re-log foods from another day</p>
           </div>
         </button>
 
